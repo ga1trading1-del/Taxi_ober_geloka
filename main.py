@@ -15,8 +15,8 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# توكن البوت الخاص بك (تكسي اوبر جيلوكا)
-TOKEN = "7925917289:AAGR12K19_placeholder_token"  # قم باستبدال هذا النص بالتوكن الكامل المأخوذ من BotFather
+# التوكن الجديد المحدث لبوت التاكسي
+TOKEN = "8806683255:AAFQR0g5dfbnf8vaEDPm8MvFzCse06z6fvs"
 
 # --- إدارة قاعدة البيانات (SQLite) ---
 def init_db():
