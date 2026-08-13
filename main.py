@@ -15,7 +15,8 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"  # استبدل هذا بتوكن البوت الخاص بك من BotFather
+# توكن البوت الخاص بك (تكسي اوبر جيلوكا)
+TOKEN = "7925917289:AAGR12K19_placeholder_token"  # قم باستبدال هذا النص بالتوكن الكامل المأخوذ من BotFather
 
 # --- إدارة قاعدة البيانات (SQLite) ---
 def init_db():
@@ -56,7 +57,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🚖 أهلاً بك في خدمة التاكسي!\n\n"
         "• **للزبائن:** يرجى إرسال موقعك المباشر وكتابة اسم التاكسي المطلوب (مثال: تكسي1).\n"
-        "• **للائقيين:** لتسجيل حسابك، أرسل الأمر:\n"
+        "• **للسائقين:** لتسجيل حسابك في النظام، أرسل الأمر التالي:\n"
         "`/register_driver [رقم_جهاز_Traccar]`",
         parse_mode="Markdown"
     )
@@ -90,9 +91,8 @@ async def register_driver(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    # هنا يمكنك إضافة منطق البحث والربط التلقائي بين طلب الزبون ومعرفات Traccar
     if text and "تكسي" in text:
-        await update.message.reply_text("جاري البحث عن السائق وتحويل طلبك...")
+        await update.message.reply_text("جاري البحث عن السائق وتوجيه طلبك...")
 
 def main():
     init_db()  # إنشاء قاعدة البيانات عند بدء التشغيل
