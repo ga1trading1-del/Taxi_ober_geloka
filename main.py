@@ -1,104 +1,110 @@
+import sqlite3
 import logging
-import requests
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler, 
-    CallbackQueryHandler, filters, ContextTypes
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
 )
 
-# التوكين الخاص بك من BotFather
-TOKEN = "8806683255:AAHDhW4l_zzSYOEYl_lREzIBrQ7k_JYmtoQ"
+# إعداد السجلات (Logging)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
-# رابط جدول بيانات جوجل الخاص بك
-GOOGLE_SHEET_URL = "https://opensheet.elk.sh/1eSH2Kxj6K6DTcg0CrOqe30H4Fque4ozO67TZ8V6P_YQ/1"
+TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"  # استبدل هذا بتوكن البوت الخاص بك من BotFather
 
-active_sessions = {}
+# --- إدارة قاعدة البيانات (SQLite) ---
+def init_db():
+    conn = sqlite3.connect("drivers.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS drivers (
+            traccar_id TEXT PRIMARY KEY,
+            telegram_id INTEGER NOT NULL,
+            username TEXT,
+            driver_name TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
 
-logging.basicConfig(level=logging.INFO)
+def add_driver(traccar_id, telegram_id, username, driver_name="سائق"):
+    conn = sqlite3.connect("drivers.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT OR REPLACE INTO drivers (traccar_id, telegram_id, username, driver_name)
+        VALUES (?, ?, ?, ?)
+    """, (traccar_id, telegram_id, username, driver_name))
+    conn.commit()
+    conn.close()
 
-def get_drivers():
-    try:
-        response = requests.get(GOOGLE_SHEET_URL)
-        if response.status_code == 200:
-            data = response.json()
-            drivers = {}
-            for row in data:
-                taxi_name = str(row.get("اسم التاكسي", "")).strip()
-                driver_id = str(row.get("ID السائق", "")).strip()
-                if taxi_name and driver_id.isdigit():
-                    drivers[taxi_name.lower()] = int(driver_id)
-            return drivers
-    except Exception as e:
-        logging.error(f"Error fetching sheet: {e}")
-    return {}
+def get_driver_by_traccar_id(traccar_id):
+    conn = sqlite3.connect("drivers.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT telegram_id, driver_name FROM drivers WHERE traccar_id = ?", (traccar_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result
+
+# --- الأوامر والتعامل مع الرسائل ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🚖 أهلاً بك في خدمة التاكسي!\n\n"
-        "يرجى إرسال **موقعك المباشر** وكتابة **اسم التاكسي** المطلوب (مثال: تكسي 1) لبدء الاتفاق."
+        "• **للزبائن:** يرجى إرسال موقعك المباشر وكتابة اسم التاكسي المطلوب (مثال: تكسي1).\n"
+        "• **للائقيين:** لتسجيل حسابك، أرسل الأمر:\n"
+        "`/register_driver [رقم_جهاز_Traccar]`",
+        parse_mode="Markdown"
+    )
+
+async def register_driver(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    username = update.effective_user.username or "بدون اسم مستخدم"
+    args = context.args
+
+    if not args:
+        await update.message.reply_text(
+            "⚠️ **طريقة التسجيل خاطئة!**\n"
+            "يرجى كتابة الأمر متبوعاً برقم معرف جهاز Traccar الخاص بك:\n"
+            "مثال: `/register_driver 79259172`",
+            parse_mode="Markdown"
+        )
+        return
+
+    traccar_id = args[0]
+    
+    # حفظ البيانات في قاعدة البيانات SQLite
+    add_driver(traccar_id, user_id, username)
+
+    await update.message.reply_text(
+        f"✅ **تم تسجيلك كسائق بنجاح!**\n\n"
+        f"🆔 معرف Traccar: `{traccar_id}`\n"
+        f"📱 Telegram ID: `{user_id}`\n\n"
+        f"أنت الآن متصل بالنظام وجاهز لاستقبال الطلبات القريبة.",
+        parse_mode="Markdown"
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    text = update.message.text or ""
+    text = update.message.text
+    # هنا يمكنك إضافة منطق البحث والربط التلقائي بين طلب الزبون ومعرفات Traccar
+    if text and "تكسي" in text:
+        await update.message.reply_text("جاري البحث عن السائق وتحويل طلبك...")
+
+def main():
+    init_db()  # إنشاء قاعدة البيانات عند بدء التشغيل
     
-    if user_id in active_sessions:
-        target_id = active_sessions[user_id]
-        if update.message.location:
-            await context.bot.send_location(chat_id=target_id, location=update.message.location)
-        elif text:
-            await context.bot.send_message(chat_id=target_id, text=f"💬 رسالة: {text}")
-        return
-
-    drivers = get_drivers()
-
-    for taxi_name, driver_id in drivers.items():
-        if taxi_name in text.lower():
-            active_sessions[user_id] = driver_id
-            active_sessions[driver_id] = user_id
-            
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("❌ إنهاء الرحلة", callback_data="end_ride")]
-            ])
-            
-            await context.bot.send_message(
-                chat_id=driver_id,
-                text=f"🚖 **طلب جديد!**\nالزبون يناديك [{taxi_name}]. تم فتح الشات المباشر بينكما الآن.",
-                reply_markup=keyboard
-            )
-            
-            await update.message.reply_text(
-                f"✅ تم توصيلك بـ [{taxi_name}]. يمكنك الآن الاتفاق على السعر والوجهة مباشرة هنا.",
-                reply_markup=keyboard
-            )
-            
-            if update.message.location:
-                await context.bot.send_location(chat_id=driver_id, location=update.message.location)
-            return
-
-    await update.message.reply_text("❓ لم نتمكن من التعرف على اسم التاكسي، أو ربما غير مسجل حالياً. يرجى التأكد من الاسم.")
-
-async def end_ride(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    
-    if user_id in active_sessions:
-        partner_id = active_sessions.pop(user_id, None)
-        if partner_id in active_sessions:
-            del active_sessions[partner_id]
-            
-        await context.bot.send_message(chat_id=user_id, text="🔴 تم إنهاء الرحلة وإغلاق الشات.")
-        if partner_id:
-            await context.bot.send_message(chat_id=partner_id, text="🔴 تم إنهاء الرحلة من قبل الطرف الآخر.")
-    else:
-        await query.edit_message_text("لا توجد رحلة نشطة حالياً.")
-
-if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
-    
+
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(end_ride, pattern="^end_ride$"))
-    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
-    
+    app.add_handler(CommandHandler("register_driver", register_driver))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+
+    print("🚀 البوت يعمل وقاعدة البيانات جاهزة...")
     app.run_polling()
+
+if __name__ == "__main__":
+    main()
