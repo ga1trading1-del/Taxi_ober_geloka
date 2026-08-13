@@ -15,13 +15,14 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# التوكن الخاص بالبوت
 TOKEN = "8806683255:AAFQR0g5dfbnf8vaEDPm8MvFzCse06z6fvs"
 
-# قاموس مؤقت لحفظ الجلسة النشطة لكل زبون (ID الزبون -> ID السائق)
+# جلسات الزبائن (ID الزبون -> ID السائق)
 active_sessions = {}
+# جلسات السائقين للرد (ID السائق -> ID الزبون)
+driver_reply_sessions = {}
 
-# --- إدارة قاعدة البيانات (SQLite) ---
+# --- قاعدة البيانات ---
 def init_db():
     conn = sqlite3.connect("drivers.db")
     cursor = conn.cursor()
@@ -54,15 +55,21 @@ def get_all_drivers():
     conn.close()
     return results
 
-# --- الأوامر والتعامل مع الرسائل ---
+def is_driver(telegram_id):
+    drivers = get_all_drivers()
+    for d in drivers:
+        if d[0] == telegram_id:
+            return True
+    return False
+
+# --- الأوامر والرسائل ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🚖 **أهلاً بك في خدمة التاكسي!**\n\n"
-        "• **للزبائن:** اكتب اسم التاكسي (مثال: `تكسي1` أو `تكسي2`) لربط محادثتك به مباشرة، وسيتم تحويل جميع رسائلك وموقعك إليه تلقائياً.\n"
-        "• **للسائقين:** لتسجيل حسابك والتأكيد على اسم التاكسي، أرسل:\n"
-        "`/register_driver [رقم_جهاز_Traccar] [اسم_التاكسي]`\n"
-        "مثال: `/register_driver 79259172 تكسي1`",
+        "• **للزبائن:** اكتب اسم التاكسي (مثال: `تكسي1`) لربط المحادثة بالسائق.\n"
+        "• **للسائقين:** لتسجيل نفسك أرسل:\n"
+        "`/register_driver [رقم_جهاز_Traccar] [اسم_التاكسي]`",
         parse_mode="Markdown"
     )
 
@@ -72,12 +79,7 @@ async def register_driver(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
 
     if not args:
-        await update.message.reply_text(
-            "⚠️ **طريقة التسجيل خاطئة!**\n"
-            "يرجى كتابة الأمر متبوعاً برقم معرف Traccar واسم التاكسي:\n"
-            "مثال: `/register_driver 79259172 تكسي1`",
-            parse_mode="Markdown"
-        )
+        await update.message.reply_text("⚠️ يرجى استخدام الأمر: `/register_driver 79259172 تكسي1`", parse_mode="Markdown")
         return
 
     traccar_id = args[0]
@@ -88,8 +90,7 @@ async def register_driver(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ **تم تسجيلك كسائق بنجاح!**\n\n"
         f"🚕 اسم التاكسي: `{driver_name}`\n"
-        f"🆔 معرف Traccar: `{traccar_id}`\n"
-        f"📱 Telegram ID: `{user_id}`",
+        f"🆔 معرف Traccar: `{traccar_id}`",
         parse_mode="Markdown"
     )
 
@@ -100,53 +101,72 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     customer_username = f"@{update.effective_user.username}" if update.effective_user.username else "بدون اسم مستخدم"
 
     drivers = get_all_drivers()
-    if not drivers:
-        await update.message.reply_text("⚠️ لا يوجد سائقون مسجلون في النظام حالياً.")
+    driver_ids = [d[0] for d in drivers]
+
+    # --- 1. إذا كان المراسِل هو "سائق" ويريد الرد على الزبون ---
+    if user_id in driver_ids:
+        # إذا كان السائق مرتبكاً بزبون حالي
+        if user_id in driver_reply_sessions:
+            target_customer_id = driver_reply_sessions[user_id]
+            try:
+                await context.bot.send_message(
+                    chat_id=target_customer_id,
+                    text=f"🚖 **رسالة من السائق:**\n{user_text}"
+                )
+                await update.message.reply_text("✅ تم إرسال ردك للزبون بنجاح!")
+            except Exception as e:
+                await update.message.reply_text("⚠️ تعذر إرسال الرسالة للزبون (ربما قام بإيقاف البوت).")
+        else:
+            await update.message.reply_text("ℹ️ أنت مسجل كسائق. بانتظار استقبال طلبات جديدة من الزبائن.")
         return
 
-    # 1. التحقق مما إذا كان النص يحتوي على اسم سائق جديد للتحويل إليه
+    # --- 2. إذا كان المراسِل هو "زبون" ---
+    if not drivers:
+        await update.message.reply_text("⚠️ لا يوجد سائقون مسجلون حالياً.")
+        return
+
     selected_driver_id = None
     selected_driver_name = None
 
+    # البحث عن اسم السائق في رسالة الزبون (مثال: تكسي1 أو تكسي2)
     for telegram_id, driver_name, traccar_id in drivers:
         if driver_name in user_text:
-            active_sessions[user_id] = (telegram_id, driver_name)  # تحديث/تبديل السائق للزبون
+            active_sessions[user_id] = (telegram_id, driver_name)
             selected_driver_id = telegram_id
             selected_driver_name = driver_name
             break
 
-    # 2. إذا لم يذكر اسم سائق جديد، استخدام السائق المحفوظ في الجلسة السابقة
+    # إذا لم يذكر اسم سائق، استخدام الجلسة السابقة
     if not selected_driver_id and user_id in active_sessions:
         selected_driver_id, selected_driver_name = active_sessions[user_id]
 
-    # 3. إرسال الرسالة للسائق المحدد
     if selected_driver_id:
+        # ربط السائق بالزبون لكي يستطيع الرد عليه مباشرة
+        driver_reply_sessions[selected_driver_id] = user_id
+
         try:
             await context.bot.send_message(
                 chat_id=selected_driver_id,
-                text=f"🚨 **رسالة جديدة من الزبون ({customer_name})!**\n\n"
+                text=f"🚨 **طلب/رسالة من الزبون ({customer_name})!**\n\n"
                      f"💬 النص: {user_text}\n"
-                     f"👤 الحساب: {customer_username}",
+                     f"👤 الحساب: {customer_username}\n\n"
+                     f"💡 *أكتب أي رسالة هنا للرد المباشر على هذا الزبون.*",
                 parse_mode="Markdown"
             )
             await update.message.reply_text(f"✅ تم توجيه رسالتك إلى ({selected_driver_name}) بنجاح!")
         except Exception as e:
-            logging.error(f"خطأ في توجيه الرسالة: {e}")
-            await update.message.reply_text("⚠️ تعذر الوصول للسائق حالياً.")
+            await update.message.reply_text("⚠️ تعذر الوصول للسائق.")
     else:
-        await update.message.reply_text(
-            "⚠️ يرجى كتابة اسم التاكسي المطلوب أولاً (مثال: `تكسي1` أو `تكسي2`) لتوجيه المحادثة إليه.",
-            parse_mode="Markdown"
-        )
+        await update.message.reply_text("⚠️ يرجى كتابة اسم التاكسي المطلوب (مثال: `تكسي1`) للتواصل معه.", parse_mode="Markdown")
 
 async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     location = update.message.location
     user_id = update.effective_user.id
     customer_name = update.effective_user.first_name or "زبون"
 
-    # إرسال الموقع للسائق المرتبط بالزبون في الجلسة، أو لجميع السائقين إن لم يحدد سائقاً
     if user_id in active_sessions:
         driver_id, driver_name = active_sessions[user_id]
+        driver_reply_sessions[driver_id] = user_id
         try:
             await context.bot.send_message(
                 chat_id=driver_id,
@@ -160,16 +180,7 @@ async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await update.message.reply_text(f"✅ تم إرسال موقعك للسائق ({driver_name}) بنجاح!")
         except Exception as e:
-            logging.error(f"خطأ في إرسال الموقع: {e}")
-    else:
-        drivers = get_all_drivers()
-        if drivers:
-            for telegram_id, driver_name, traccar_id in drivers:
-                try:
-                    await context.bot.send_location(chat_id=telegram_id, latitude=location.latitude, longitude=location.longitude)
-                except Exception as e:
-                    pass
-            await update.message.reply_text("✅ تم إرسال موقعك لجميع السائقين المتاحين!")
+            logging.error(f"خطأ: {e}")
 
 def main():
     init_db()
