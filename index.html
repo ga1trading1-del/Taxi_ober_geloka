@@ -33,7 +33,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // 1. إنشاء الخريطة
+        // 1. إنشاء الخريطة وتركيزها افتراضياً
         var map = L.map('map').setView([33.3152, 44.3661], 13);
 
         // 2. تحميل طبقة OpenStreetMap
@@ -49,7 +49,7 @@
         // قائمة لتخزين ماركرات التاكسي
         var driversMarkers = {};
 
-        // 3. تحديد وتتبع موقع الزبون اللحظي (الدائرة الزرقاء)
+        // 3. تحديد وتتبع موقع الزبون اللحظي بالـ GPS
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 function(position) {
@@ -61,6 +61,7 @@
                         userCircle.setLatLng([lat, lng]);
                         accuracyCircle.setLatLng([lat, lng]).setRadius(accuracy);
                     } else {
+                        // دائرة مدى الدقة
                         accuracyCircle = L.circle([lat, lng], {
                             radius: accuracy,
                             color: '#1a73e8',
@@ -69,6 +70,7 @@
                             stroke: false
                         }).addTo(map);
 
+                        // موقع الزبون اللحظي
                         userCircle = L.circleMarker([lat, lng], {
                             radius: 8,
                             color: '#ffffff',
@@ -81,13 +83,13 @@
                     }
                 },
                 function(error) {
-                    console.error("خطأ الموقع: ", error);
+                    console.error("خطأ تحديد موقع الزبون: ", error);
                 },
                 { enableHighAccuracy: true, maximumAge: 1000, timeout: 7000 }
             );
         }
 
-        // أيقونة سيارة التاكسي
+        // 4. أيقونة التاكسي
         var taxiIcon = L.icon({
             iconUrl: 'https://cdn-icons-png.flaticon.com/512/3202/3202052.png',
             iconSize: [35, 35],
@@ -95,39 +97,58 @@
             popupAnchor: [0, -15]
         });
 
-        // 4. جلب مواقع السائقين من Traccar
-        // استبدل هذا الرابط برابط سيرفر Traccar الخاص بك إذا كان مختلفاً
-        var traccarUrl = 'http://YOUR_TRACCAR_IP:8082/api/positions'; 
+        // 5. رابط سيرفر Traccar الخاص بك على Railway
+        var traccarUrl = 'https://taxi-ober-geloka-traccar.up.railway.app/api/positions';
 
         function loadTraccarPositions() {
             fetch(traccarUrl, {
+                method: 'GET',
                 headers: {
                     'Accept': 'application/json'
-                }
+                },
+                credentials: 'include' // للسماح بجلسات التوثيق عند الحاجة
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('شبكة Traccar لم تستجب بشكل صحيح: ' + response.statusText);
+                }
+                return response.json();
+            })
             .then(positions => {
-                positions.forEach(pos => {
-                    var deviceId = pos.deviceId;
-                    var lat = pos.latitude;
-                    var lng = pos.longitude;
+                // وقت الحظر (إخفاء أي سائق لم يرسل موقعاً منذ أكثر من 15 دقيقة)
+                var cutoffTime = new Date(Date.now() - 15 * 60000);
 
-                    if (lat && lng) {
-                        if (driversMarkers[deviceId]) {
-                            driversMarkers[deviceId].setLatLng([lat, lng]);
-                        } else {
-                            var marker = L.marker([lat, lng], { icon: taxiIcon })
-                                .bindPopup(`<b>سائق تاكسي (${deviceId})</b>`)
-                                .addTo(map);
-                            driversMarkers[deviceId] = marker;
+                positions.forEach(pos => {
+                    var fixTime = new Date(pos.fixTime || pos.deviceTime);
+
+                    if (fixTime > cutoffTime) {
+                        var deviceId = pos.deviceId;
+                        var lat = pos.latitude;
+                        var lng = pos.longitude;
+
+                        if (lat && lng) {
+                            if (driversMarkers[deviceId]) {
+                                // تحديث موقع السائق
+                                driversMarkers[deviceId].setLatLng([lat, lng]);
+                            } else {
+                                // إضافة سائق جديد
+                                var marker = L.marker([lat, lng], { icon: taxiIcon })
+                                    .bindPopup(`<b>سائق تاكسي متوفر</b><br>رقم الجهاز: ${deviceId}`)
+                                    .addTo(map);
+                                driversMarkers[deviceId] = marker;
+                            }
                         }
+                    } else if (driversMarkers[pos.deviceId]) {
+                        // إزالة السائق غير النشط من الخريطة
+                        map.removeLayer(driversMarkers[pos.deviceId]);
+                        delete driversMarkers[pos.deviceId];
                     }
                 });
             })
-            .catch(err => console.error("خطأ جلب Traccar:", err));
+            .catch(err => console.error("خطأ أثناء جلب مواضع السائقين من Traccar:", err));
         }
 
-        // تحديث المواقع كل 5 ثوانٍ
+        // تشغيل الجلب فوراً وتحديثه كل 5 ثوانٍ
         loadTraccarPositions();
         setInterval(loadTraccarPositions, 5000);
     </script>
