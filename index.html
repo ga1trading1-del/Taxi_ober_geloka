@@ -3,122 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>خريطة التكاسي المتاحة</title>
-    <!-- Telegram WebApp SDK -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Leaflet CSS & JS -->
+    <title>خارطة تحديد موقع الزبون</title>
+    
+    <!-- مكتبة Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
     <style>
-        * { box-sizing: border-box; }
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: system-ui, -apple-system, sans-serif; }
-        #map { height: 100vh; width: 100vw; }
-        .taxi-popup { text-align: center; font-size: 14px; padding: 5px; }
-        .taxi-title { font-weight: bold; font-size: 16px; color: #1c2e4a; margin-bottom: 5px; }
-        .status-online { color: #28a745; font-size: 12px; margin-bottom: 8px; }
-        .btn-select {
-            background-color: #0088cc; color: white; border: none;
-            padding: 10px 15px; border-radius: 8px;
-            cursor: pointer; width: 100%; font-weight: bold; font-size: 14px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
-        .btn-select:active { background-color: #006699; }
-        .loading-overlay {
-            position: absolute; top: 10px; right: 10px; z-index: 1000;
-            background: rgba(255,255,255,0.9); padding: 8px 15px;
-            border-radius: 20px; font-size: 12px; font-weight: bold;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        body, html {
+            width: 100%;
+            height: 100%;
+            font-family: Arial, sans-serif;
+        }
+        /* حاوية الخارطة على كامل الشاشة */
+        #map {
+            width: 100%;
+            height: 100vh;
         }
     </style>
 </head>
 <body>
 
-<div class="loading-overlay" id="loading">📡 جاري تحديث مواقع التكاسي...</div>
-<div id="map"></div>
+    <!-- عنصر الخارطة -->
+    <div id="map"></div>
 
-<script>
-    const tg = window.Telegram.WebApp;
-    tg.expand();
+    <!-- مكتبة Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    // إعداد الخريطة الافتراضية (موصل / العراق كمركز)
-    const map = L.map('map').setView([36.34, 43.13], 12);
+    <script>
+        // 1. إعداد الخارطة وتحديد مركز افتراضي (مثلاً بغداد) مع التكبير
+        var map = L.map('map').setView([33.3152, 44.3661], 13);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
+        // 2. تحميل بلاطات الخارطة من OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
 
-    const SERVER_URL = "https://traccar-production-822f.up.railway.app";
-    const USER = "ga1trading1@gmail.com";
-    const PASS = "1GALAL1galal";
+        // متغيرات لحفظ أشكال الدائرة ودائرة الدقة
+        var userCircle = null;
+        var accuracyCircle = null;
 
-    let markers = {};
+        // 3. التتبع المباشر الحي لموقع الزبون (GPS)
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                function(position) {
+                    var lat = position.coords.latitude;
+                    var lng = position.coords.longitude;
+                    var accuracy = position.coords.accuracy; // مدى الدقة بالمتر
 
-    async function fetchTaxis() {
-        try {
-            const authHeader = 'Basic ' + btoa(USER + ':' + PASS);
-            
-            // جلب الأجهزة والمواقع من Traccar API
-            const [devicesRes, positionsRes] = await Promise.all([
-                fetch(`${SERVER_URL}/api/devices`, { headers: { 'Authorization': authHeader } }),
-                fetch(`${SERVER_URL}/api/positions`, { headers: { 'Authorization': authHeader } })
-            ]);
-
-            if (!devicesRes.ok || !positionsRes.ok) throw new Error("فشل الاتصال بسيرفر Traccar");
-
-            const devices = await devicesRes.json();
-            const positions = await positionsRes.json();
-
-            const posMap = {};
-            positions.forEach(p => { posMap[p.deviceId] = p; });
-
-            const bounds = [];
-
-            devices.forEach(device => {
-                const pos = posMap[device.id];
-                if (pos && pos.latitude && pos.longitude) {
-                    const lat = pos.latitude;
-                    const lng = pos.longitude;
-                    bounds.push([lat, lng]);
-
-                    const driverName = device.name || `تكسي_${device.uniqueId}`;
-
-                    if (markers[device.id]) {
-                        markers[device.id].setLatLng([lat, lng]);
+                    // إذا كانت الدائرة موجودة مسبقاً، نكتفي بتحديث موقعها مع تحرك الزبون
+                    if (userCircle) {
+                        userCircle.setLatLng([lat, lng]);
+                        accuracyCircle.setLatLng([lat, lng]).setRadius(accuracy);
                     } else {
-                        const marker = L.marker([lat, lng]).addTo(map);
-                        const popupContent = `
-                            <div class="taxi-popup">
-                                <div class="taxi-title">🚖 ${driverName}</div>
-                                <div class="status-online">🟢 متصل ومتاح</div>
-                                <button class="btn-select" onclick="selectTaxi('${driverName}')">طلب هذا التاكسي</button>
-                            </div>
-                        `;
-                        marker.bindPopup(popupContent);
-                        markers[device.id] = marker;
+                        // إنشاء دائرة مدى الدقة الشفافة خلف النقطة
+                        accuracyCircle = L.circle([lat, lng], {
+                            radius: accuracy,
+                            color: '#1a73e8',
+                            fillColor: '#1a73e8',
+                            fillOpacity: 0.15,
+                            stroke: false
+                        }).addTo(map);
+
+                        // إنشاء الدائرة الزرقاء (موقع الزبون الحالي)
+                        userCircle = L.circleMarker([lat, lng], {
+                            radius: 8,           // حجم النقطة
+                            color: '#ffffff',    // إطار أبيض
+                            weight: 2,           // سمك الإطار
+                            fillColor: '#1a73e8', // الأزرق الشهير
+                            fillOpacity: 1
+                        }).addTo(map);
+
+                        // تمركز الخارطة عند الزبون لأول مرة
+                        map.setView([lat, lng], 16);
                     }
+                },
+                function(error) {
+                    console.error("خطأ في تحديد الموقع: ", error);
+                },
+                {
+                    enableHighAccuracy: true, // تفعيل أعلى دقة GPS
+                    maximumAge: 1000,         // عدم استخدام موقع قديم
+                    timeout: 7000
                 }
-            });
-
-            if (bounds.length > 0 && Object.keys(markers).length === bounds.length) {
-                map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-            }
-
-            document.getElementById('loading').innerText = "✅ تم تحديث الخريطة بنجاح";
-            setTimeout(() => { document.getElementById('loading').style.display = 'none'; }, 3000);
-
-        } catch (err) {
-            console.error(err);
-            document.getElementById('loading').innerText = "⚠️ خطأ في الاتصال بسيرفر Traccar";
+            );
+        } else {
+            alert("متصفحك لا يدعم خدمة تحديد الموقع.");
         }
-    }
-
-    function selectTaxi(driverName) {
-        tg.sendData(driverName);
-        tg.close();
-    }
-
-    fetchTaxis();
-    setInterval(fetchTaxis, 10000); // تحديث تلقائي كل 10 ثوانٍ
-</script>
+    </script>
 </body>
 </html>
