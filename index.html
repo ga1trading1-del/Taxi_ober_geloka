@@ -33,7 +33,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // 1. إنشاء الخريطة وتركيزها افتراضياً
+        // 1. إنشاء الخريطة وتحديد المركز الافتراضي
         var map = L.map('map').setView([33.3152, 44.3661], 13);
 
         // 2. تحميل طبقة OpenStreetMap
@@ -46,10 +46,7 @@
         var userCircle = null;
         var accuracyCircle = null;
 
-        // قائمة لتخزين ماركرات التاكسي
-        var driversMarkers = {};
-
-        // 3. تحديد وتتبع موقع الزبون اللحظي بالـ GPS
+        // 3. تحديد وتتبع موقع الزبون اللحظي (الدائرة الزرقاء)
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 function(position) {
@@ -70,7 +67,7 @@
                             stroke: false
                         }).addTo(map);
 
-                        // موقع الزبون اللحظي
+                        // الدائرة الزرقاء لموقع الزبون
                         userCircle = L.circleMarker([lat, lng], {
                             radius: 8,
                             color: '#ffffff',
@@ -83,74 +80,15 @@
                     }
                 },
                 function(error) {
-                    console.error("خطأ تحديد موقع الزبون: ", error);
+                    console.error("خطأ في تحديد موقع الزبون: ", error);
                 },
-                { enableHighAccuracy: true, maximumAge: 1000, timeout: 7000 }
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 1000,
+                    timeout: 7000
+                }
             );
         }
-
-        // 4. أيقونة التاكسي
-        var taxiIcon = L.icon({
-            iconUrl: 'https://cdn-icons-png.flaticon.com/512/3202/3202052.png',
-            iconSize: [35, 35],
-            iconAnchor: [17, 17],
-            popupAnchor: [0, -15]
-        });
-
-        // 5. رابط سيرفر Traccar الخاص بك على Railway
-        var traccarUrl = 'https://taxi-ober-geloka-traccar.up.railway.app/api/positions';
-
-        function loadTraccarPositions() {
-            fetch(traccarUrl, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json'
-                },
-                credentials: 'include' // للسماح بجلسات التوثيق عند الحاجة
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('شبكة Traccar لم تستجب بشكل صحيح: ' + response.statusText);
-                }
-                return response.json();
-            })
-            .then(positions => {
-                // وقت الحظر (إخفاء أي سائق لم يرسل موقعاً منذ أكثر من 15 دقيقة)
-                var cutoffTime = new Date(Date.now() - 15 * 60000);
-
-                positions.forEach(pos => {
-                    var fixTime = new Date(pos.fixTime || pos.deviceTime);
-
-                    if (fixTime > cutoffTime) {
-                        var deviceId = pos.deviceId;
-                        var lat = pos.latitude;
-                        var lng = pos.longitude;
-
-                        if (lat && lng) {
-                            if (driversMarkers[deviceId]) {
-                                // تحديث موقع السائق
-                                driversMarkers[deviceId].setLatLng([lat, lng]);
-                            } else {
-                                // إضافة سائق جديد
-                                var marker = L.marker([lat, lng], { icon: taxiIcon })
-                                    .bindPopup(`<b>سائق تاكسي متوفر</b><br>رقم الجهاز: ${deviceId}`)
-                                    .addTo(map);
-                                driversMarkers[deviceId] = marker;
-                            }
-                        }
-                    } else if (driversMarkers[pos.deviceId]) {
-                        // إزالة السائق غير النشط من الخريطة
-                        map.removeLayer(driversMarkers[pos.deviceId]);
-                        delete driversMarkers[pos.deviceId];
-                    }
-                });
-            })
-            .catch(err => console.error("خطأ أثناء جلب مواضع السائقين من Traccar:", err));
-        }
-
-        // تشغيل الجلب فوراً وتحديثه كل 5 ثوانٍ
-        loadTraccarPositions();
-        setInterval(loadTraccarPositions, 5000);
     </script>
 </body>
 </html>
