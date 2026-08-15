@@ -3,46 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>خريطة التكاسي المباشرة - تكسي أوبر جيلوكا</title>
+    <title>خريطة التكاسي المباشرة</title>
     
-    <!-- مكتبة الخرائط Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        html, body, #map {
-            width: 100%;
-            height: 100%;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .leaflet-popup-content {
-            font-size: 14px;
-            text-align: center;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body, #map { width: 100%; height: 100%; }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
 
-    <!-- مكتبة الخرائط Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // إعداد الخريطة الافتراضية على مدينة الموصل
+        // إنشاء الخريطة
         const map = L.map('map').setView([36.34, 43.13], 13);
 
-        // إضافة طبقة الخريطة (OpenStreetMap)
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        // مجموعة الدبابيس لسهولة مسحها وتحديثها
         const markersGroup = L.layerGroup().addTo(map);
 
         // أيقونة التاكسي
@@ -53,15 +37,46 @@
             popupAnchor: [0, -19]
         });
 
-        // دالة جلب مواقع التكاسي وتحديث الخريطة
-        async function updateTaxis() {
+        let userLat = null;
+        let userLng = null;
+
+        // 1️⃣ تحديد موقع المستخدم الحالي (الدائرة الزرقاء)
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                (position) => {
+                    userLat = position.coords.latitude;
+                    userLng = position.coords.longitude;
+                    updateMapData();
+                },
+                (error) => {
+                    console.warn("لم يتم السماح بالوصول للموقع:", error);
+                },
+                { enableHighAccuracy: true }
+            );
+        }
+
+        // 2️⃣ جلب التكاسي وتحديث الخريطة
+        async function updateMapData() {
             try {
                 const response = await fetch('https://Jalal1.pythonanywhere.com/get_drivers');
                 const data = await response.json();
 
-                // مسح الدبابيس القديمة
                 markersGroup.clearLayers();
+                const bounds = [];
 
+                // رسم موقع المستخدم الحالي (دائرة زرقاء)
+                if (userLat && userLng) {
+                    L.circleMarker([userLat, userLng], {
+                        radius: 9,
+                        color: '#1A73E8',
+                        fillColor: '#4285F4',
+                        fillOpacity: 0.8
+                    }).addTo(markersGroup).bindPopup("موقعك الحالي 🔵");
+
+                    bounds.push([userLat, userLng]);
+                }
+
+                // رسم التكاسي
                 if (Array.isArray(data) && data.length > 0) {
                     data.forEach(pos => {
                         if (pos.latitude && pos.longitude) {
@@ -69,23 +84,27 @@
                             const lng = pos.longitude;
                             const name = pos.driver_name || "تكسي 1";
 
-                            // إضافة دبوس التاكسي
                             L.marker([lat, lng], { icon: taxiIcon })
                              .addTo(markersGroup)
-                             .bindPopup(`<b>🚕 ${name}</b><br>متصل ومتاح الآن`);
+                             .bindPopup(`<b>🚕 ${name}</b><br>متصل ومتاح`);
+
+                            bounds.push([lat, lng]);
                         }
                     });
                 }
+
+                // تعديل نطاق الخريطة ليركز على التاكسي وموقعك معاً
+                if (bounds.length > 0) {
+                    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+                }
+
             } catch (err) {
-                console.error("خطأ أثناء جلب بيانات التكاسي:", err);
+                console.error("خطأ جلب البيانات:", err);
             }
         }
 
-        // تحديث تلقائي كل 3 ثوانٍ
-        setInterval(updateTaxis, 3000);
-        
-        // تشغيل التحديث فور فتح الصفحة
-        updateTaxis();
+        setInterval(updateMapData, 3000);
+        updateMapData();
     </script>
 </body>
 </html>
