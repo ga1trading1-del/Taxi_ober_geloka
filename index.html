@@ -22,7 +22,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // 1. الخريطة وتحديها افتراضياً
+        // 1. إنشاء الخريطة والتركيز الافتراضي على بغداد
         var map = L.map('map').setView([33.3152, 44.3661], 13);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -34,7 +34,7 @@
         var accuracyCircle = null;
         var driversMarkers = {};
 
-        // 2. موقع الزبون اللحظي (الدائرة الزرقاء)
+        // 2. تتبع موقع الزبون اللحظي (الدائرة الزرقاء)
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 function(position) {
@@ -78,17 +78,20 @@
             popupAnchor: [0, -15]
         });
 
-        // 4. رابط سيرفر Traccar الخاص بك مدمجاً مع التوكن
+        // 4. جلب إحداثيات السائقين من سيرفر Traccar باستخدام بيانات حسابك
         var traccarUrl = 'https://traccar-production-822f.up.railway.app/api/positions';
+        var email = 'ga1trading1@gmail.com';
+        var password = '1GALAL1galal';
 
         function loadTraccarPositions() {
             fetch(traccarUrl, {
                 headers: {
+                    'Authorization': 'Basic ' + btoa(email + ':' + password),
                     'Accept': 'application/json'
                 }
             })
             .then(response => {
-                if (!response.ok) throw new Error("HTTP Error " + response.status);
+                if (!response.ok) throw new Error("HTTP error " + response.status);
                 return response.json();
             })
             .then(positions => {
@@ -99,8 +102,10 @@
 
                     if (lat && lng) {
                         if (driversMarkers[deviceId]) {
+                            // تحديث موقع التاكسي
                             driversMarkers[deviceId].setLatLng([lat, lng]);
                         } else {
+                            // إضافة التاكسي على الخريطة
                             var marker = L.marker([lat, lng], { icon: taxiIcon })
                                 .bindPopup(`<b>سائق تاكسي متوفر</b><br>رقم الجهاز: ${deviceId}`)
                                 .addTo(map);
@@ -112,8 +117,9 @@
             .catch(err => console.log("بانتظار تحديث مواقع السائقين...", err));
         }
 
+        // تشغيل الجلب والتحديث كل 3 ثوانٍ
         loadTraccarPositions();
-        setInterval(loadTraccarPositions, 4000);
+        setInterval(loadTraccarPositions, 3000);
     </script>
 </body>
 </html>
