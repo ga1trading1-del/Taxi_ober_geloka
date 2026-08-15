@@ -33,7 +33,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // 1. إنشاء الخريطة وتحديد المركز الافتراضي
+        // 1. إنشاء الخريطة وتركيزها افتراضياً على بغداد/العراق
         var map = L.map('map').setView([33.3152, 44.3661], 13);
 
         // 2. تحميل طبقة OpenStreetMap
@@ -45,6 +45,9 @@
         // متغيرات موقع الزبون
         var userCircle = null;
         var accuracyCircle = null;
+
+        // قائمة لتخزين ماركرات التاكسي
+        var driversMarkers = {};
 
         // 3. تحديد وتتبع موقع الزبون اللحظي (الدائرة الزرقاء)
         if (navigator.geolocation) {
@@ -82,13 +85,57 @@
                 function(error) {
                     console.error("خطأ في تحديد موقع الزبون: ", error);
                 },
-                {
-                    enableHighAccuracy: true,
-                    maximumAge: 1000,
-                    timeout: 7000
-                }
+                { enableHighAccuracy: true, maximumAge: 1000, timeout: 7000 }
             );
         }
+
+        // 4. أيقونة التاكسي
+        var taxiIcon = L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/3202/3202052.png',
+            iconSize: [35, 35],
+            iconAnchor: [17, 17],
+            popupAnchor: [0, -15]
+        });
+
+        // 5. رابط سيرفر Traccar الخاص بك الجديد والحيوي
+        var traccarUrl = 'https://traccar-production-822f.up.railway.app/api/positions';
+
+        function loadTraccarPositions() {
+            fetch(traccarUrl, {
+                headers: {
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) throw new Error("HTTP error " + response.status);
+                return response.json();
+            })
+            .then(positions => {
+                positions.forEach(pos => {
+                    var deviceId = pos.deviceId;
+                    var lat = pos.latitude;
+                    var lng = pos.longitude;
+
+                    if (lat && lng) {
+                        if (driversMarkers[deviceId]) {
+                            // تحديث موقع السائق الحالي
+                            driversMarkers[deviceId].setLatLng([lat, lng]);
+                        } else {
+                            // إضافة سائق جديد إلى الخريطة
+                            var marker = L.marker([lat, lng], { icon: taxiIcon })
+                                .bindPopup(`<b>سائق تاكسي متوفر</b><br>رقم الجهاز: ${deviceId}`)
+                                .addTo(map);
+                            driversMarkers[deviceId] = marker;
+                        }
+                    }
+                });
+            })
+            .catch(err => console.log("بانتظار تحديثات السائقين من Traccar..."));
+        }
+
+        // تشغيل الجلب فوراً وتحديث المواقع كل 4 ثوانٍ
+        loadTraccarPositions();
+        setInterval(loadTraccarPositions, 4000);
     </script>
 </body>
 </html>
