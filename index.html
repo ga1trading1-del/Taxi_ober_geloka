@@ -49,10 +49,10 @@
         }
         map.on('locationerror', onLocationError);
 
-        // جلب مواقع السائقين من السيرفر
+        // جلب مواقع السائقين مباشرة من سيرفر PythonAnywhere
         async function fetchDrivers() {
             try {
-                const response = await fetch('/api/drivers');
+                const response = await fetch('https://ga1trading1-del.pythonanywhere.com/api/drivers');
                 const drivers = await response.json();
                 drivers.forEach(driver => {
                     if (driver.lat && driver.lng) {
