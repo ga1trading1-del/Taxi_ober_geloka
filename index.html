@@ -5,51 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تكسي اوبر جيلوكا</title>
     
-    <!-- مكتبة Leaflet CSS -->
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        body, html {
-            width: 100%;
-            height: 100%;
-            font-family: Arial, sans-serif;
-        }
-        #map {
-            width: 100%;
-            height: 100vh;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html { width: 100%; height: 100%; font-family: Arial, sans-serif; }
+        #map { width: 100%; height: 100vh; }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
 
-    <!-- مكتبة Leaflet JS -->
+    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // 1. إنشاء الخريطة وتركيزها افتراضياً على بغداد/العراق
+        // 1. الخريطة وتحديها افتراضياً
         var map = L.map('map').setView([33.3152, 44.3661], 13);
 
-        // 2. تحميل طبقة OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        // متغيرات موقع الزبون
         var userCircle = null;
         var accuracyCircle = null;
-
-        // قائمة لتخزين ماركرات التاكسي
         var driversMarkers = {};
 
-        // 3. تحديد وتتبع موقع الزبون اللحظي (الدائرة الزرقاء)
+        // 2. موقع الزبون اللحظي (الدائرة الزرقاء)
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 function(position) {
@@ -61,7 +46,6 @@
                         userCircle.setLatLng([lat, lng]);
                         accuracyCircle.setLatLng([lat, lng]).setRadius(accuracy);
                     } else {
-                        // دائرة مدى الدقة
                         accuracyCircle = L.circle([lat, lng], {
                             radius: accuracy,
                             color: '#1a73e8',
@@ -70,7 +54,6 @@
                             stroke: false
                         }).addTo(map);
 
-                        // الدائرة الزرقاء لموقع الزبون
                         userCircle = L.circleMarker([lat, lng], {
                             radius: 8,
                             color: '#ffffff',
@@ -82,14 +65,12 @@
                         map.setView([lat, lng], 15);
                     }
                 },
-                function(error) {
-                    console.error("خطأ في تحديد موقع الزبون: ", error);
-                },
+                function(error) { console.error("GPS Error:", error); },
                 { enableHighAccuracy: true, maximumAge: 1000, timeout: 7000 }
             );
         }
 
-        // 4. أيقونة التاكسي
+        // 3. أيقونة التاكسي
         var taxiIcon = L.icon({
             iconUrl: 'https://cdn-icons-png.flaticon.com/512/3202/3202052.png',
             iconSize: [35, 35],
@@ -97,7 +78,7 @@
             popupAnchor: [0, -15]
         });
 
-        // 5. رابط سيرفر Traccar الخاص بك الجديد والحيوي
+        // 4. رابط سيرفر Traccar الخاص بك مدمجاً مع التوكن
         var traccarUrl = 'https://traccar-production-822f.up.railway.app/api/positions';
 
         function loadTraccarPositions() {
@@ -107,7 +88,7 @@
                 }
             })
             .then(response => {
-                if (!response.ok) throw new Error("HTTP error " + response.status);
+                if (!response.ok) throw new Error("HTTP Error " + response.status);
                 return response.json();
             })
             .then(positions => {
@@ -118,10 +99,8 @@
 
                     if (lat && lng) {
                         if (driversMarkers[deviceId]) {
-                            // تحديث موقع السائق الحالي
                             driversMarkers[deviceId].setLatLng([lat, lng]);
                         } else {
-                            // إضافة سائق جديد إلى الخريطة
                             var marker = L.marker([lat, lng], { icon: taxiIcon })
                                 .bindPopup(`<b>سائق تاكسي متوفر</b><br>رقم الجهاز: ${deviceId}`)
                                 .addTo(map);
@@ -130,10 +109,9 @@
                     }
                 });
             })
-            .catch(err => console.log("بانتظار تحديثات السائقين من Traccar..."));
+            .catch(err => console.log("بانتظار تحديث مواقع السائقين...", err));
         }
 
-        // تشغيل الجلب فوراً وتحديث المواقع كل 4 ثوانٍ
         loadTraccarPositions();
         setInterval(loadTraccarPositions, 4000);
     </script>
