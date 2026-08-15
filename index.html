@@ -1,110 +1,73 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>خريطة التكاسي المباشرة</title>
-    
+    <title>تتبع التاكسي</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body, #map { width: 100%; height: 100%; }
+        #map { height: 100vh; width: 100%; }
+        body { margin: 0; padding: 0; }
     </style>
 </head>
 <body>
 
-    <div id="map"></div>
+<div id="map"></div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const map = L.map('map').setView([0, 0], 13);
 
-    <script>
-        // إنشاء الخريطة
-        const map = L.map('map').setView([36.34, 43.13], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
+    let marker;
+    let userInteracted = false;
 
-        const markersGroup = L.layerGroup().addTo(map);
+    // رصد تحريك أو تصغير/تكبير الخريطة من قبل المستخدم لتعطيل التمركز التلقائي
+    map.on('dragstart zoomstart', function() {
+        userInteracted = true;
+    });
 
-        // أيقونة التاكسي
-        const taxiIcon = L.icon({
-            iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448339.png',
-            iconSize: [38, 38],
-            iconAnchor: [19, 19],
-            popupAnchor: [0, -19]
-        });
+    // استخراج التوكن والمعرف من الرابط (Query Parameters)
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const deviceId = urlParams.get('deviceId');
 
-        let userLat = null;
-        let userLng = null;
+    async function fetchLocation() {
+        if (!token || !deviceId) return;
 
-        // 1️⃣ تحديد موقع المستخدم الحالي (الدائرة الزرقاء)
-        if (navigator.geolocation) {
-            navigator.geolocation.watchPosition(
-                (position) => {
-                    userLat = position.coords.latitude;
-                    userLng = position.coords.longitude;
-                    updateMapData();
-                },
-                (error) => {
-                    console.warn("لم يتم السماح بالوصول للموقع:", error);
-                },
-                { enableHighAccuracy: true }
-            );
-        }
+        try {
+            const response = await fetch(`https://pythonanywhere.com/get_location?token=${token}&deviceId=${deviceId}`);
+            const data = await response.json();
 
-        // 2️⃣ جلب التكاسي وتحديث الخريطة
-        async function updateMapData() {
-            try {
-                const response = await fetch('https://Jalal1.pythonanywhere.com/get_drivers');
-                const data = await response.json();
+            if (data.latitude && data.longitude) {
+                const lat = data.latitude;
+                const lng = data.longitude;
 
-                markersGroup.clearLayers();
-                const bounds = [];
-
-                // رسم موقع المستخدم الحالي (دائرة زرقاء)
-                if (userLat && userLng) {
-                    L.circleMarker([userLat, userLng], {
-                        radius: 9,
-                        color: '#1A73E8',
-                        fillColor: '#4285F4',
-                        fillOpacity: 0.8
-                    }).addTo(markersGroup).bindPopup("موقعك الحالي 🔵");
-
-                    bounds.push([userLat, userLng]);
+                if (!marker) {
+                    marker = L.marker([lat, lng]).addTo(map);
+                    map.setView([lat, lng], 15);
+                } else {
+                    marker.setLatLng([lat, lng]);
                 }
 
-                // رسم التكاسي
-                if (Array.isArray(data) && data.length > 0) {
-                    data.forEach(pos => {
-                        if (pos.latitude && pos.longitude) {
-                            const lat = pos.latitude;
-                            const lng = pos.longitude;
-                            const name = pos.driver_name || "تكسي 1";
-
-                            L.marker([lat, lng], { icon: taxiIcon })
-                             .addTo(markersGroup)
-                             .bindPopup(`<b>🚕 ${name}</b><br>متصل ومتاح`);
-
-                            bounds.push([lat, lng]);
-                        }
-                    });
+                // يُعيد التمركز فقط إذا لم يقم المستخدم بتحريك الخريطة بنفسه
+                if (!userInteracted) {
+                    map.panTo([lat, lng]);
                 }
-
-                // تعديل نطاق الخريطة ليركز على التاكسي وموقعك معاً
-                if (bounds.length > 0) {
-                    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
-                }
-
-            } catch (err) {
-                console.error("خطأ جلب البيانات:", err);
             }
+        } catch (error) {
+            console.error("خطأ في جلب البيانات:", error);
         }
+    }
 
-        setInterval(updateMapData, 3000);
-        updateMapData();
-    </script>
+    // جلب الموقع كل 5 ثوانٍ
+    setInterval(fetchLocation, 5000);
+    fetchLocation();
+</script>
+
 </body>
 </html>
