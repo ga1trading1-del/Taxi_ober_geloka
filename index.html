@@ -22,8 +22,8 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // 1. إنشاء الخريطة
-        var map = L.map('map').setView([33.3152, 44.3661], 13);
+        // 1. إنشاء الخريطة وتحديد المركز المبدئي
+        var map = L.map('map').setView([33.3152, 44.3661], 12);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -34,7 +34,7 @@
         var accuracyCircle = null;
         var driversMarkers = {};
 
-        // 2. موقع الزبون اللحظي (الدائرة الزرقاء)
+        // 2. موقع الزبون اللحظي
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 function(position) {
@@ -62,7 +62,7 @@
                             fillOpacity: 1
                         }).addTo(map);
 
-                        map.setView([lat, lng], 15);
+                        map.setView([lat, lng], 14);
                     }
                 },
                 function(error) { console.error("GPS Error:", error); },
@@ -73,25 +73,26 @@
         // 3. أيقونة التاكسي
         var taxiIcon = L.icon({
             iconUrl: 'https://cdn-icons-png.flaticon.com/512/3202/3202052.png',
-            iconSize: [35, 35],
-            iconAnchor: [17, 17],
-            popupAnchor: [0, -15]
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
+            popupAnchor: [0, -18]
         });
 
-        // 4. رابط الوسيط المباشر عبر حسابك Jalal1 في PythonAnywhere
+        // 4. رابط السيرفر
         var apiUrl = 'https://Jalal1.pythonanywhere.com/get_drivers';
 
         function loadDrivers() {
             fetch(apiUrl)
             .then(response => response.json())
             .then(positions => {
-                if (!Array.isArray(positions)) return;
+                if (!Array.isArray(positions) || positions.length === 0) return;
 
                 positions.forEach(pos => {
                     var deviceId = pos.deviceId;
-                    var lat = pos.latitude;
-                    var lng = pos.longitude;
-                    var driverName = pos.driver_name || (`تكسي ${deviceId}`);
+                    // استخراج خطوط الطول والعرض سواء كانت في الجذر أو داخل كائن
+                    var lat = pos.latitude || (pos.position && pos.position.latitude);
+                    var lng = pos.longitude || (pos.position && pos.position.longitude);
+                    var driverName = pos.driver_name || (`تاكسي ${deviceId}`);
 
                     if (lat && lng) {
                         if (driversMarkers[deviceId]) {
@@ -106,7 +107,7 @@
                     }
                 });
             })
-            .catch(err => console.log("في انتظار بيانات السائقين...", err));
+            .catch(err => console.error("خطأ في جلب بيانات السائقين:", err));
         }
 
         loadDrivers();
