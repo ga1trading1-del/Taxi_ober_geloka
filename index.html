@@ -44,39 +44,66 @@
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        map.locate({setView: true, maxZoom: 15});
+        // إيقونة النقطة الزرقاء المخصصة لموقع الزبون
+        const userIcon = L.divIcon({
+            className: 'user-marker',
+            html: '<div style="background-color: #007bff; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 8px rgba(0,0,255,0.6);"></div>',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        });
+
+        let userLat = null;
+        let userLng = null;
+
+        // تحديد موقع الزبون وإظهاره بنقطة زرقاء
+        map.locate({setView: true, maxZoom: 15, enableHighAccuracy: true});
 
         map.on('locationfound', (e) => {
-            L.marker(e.latlng).addTo(map).bindPopup("موقعك الحالي").openPopup();
+            userLat = e.latlng.lat;
+            userLng = e.latlng.lng;
+            L.marker(e.latlng, { icon: userIcon }).addTo(map).bindPopup("موقعك الحالي").openPopup();
         });
 
         let driverMarkers = {};
 
+        // دالة جلب السيارات مباشرة من سيرفر Traccar لتجاوز حظر PythonAnywhere
         async function fetchDrivers() {
+            const traccarUrl = "https://traccar-production-822f.up.railway.app";
+            const authHeader = "Basic " + btoa("ga1trading1@gmail.com:1GALAL1galal");
+
             try {
-                // رابط الـ API المحدث لحساب Jalal1
-                const response = await fetch('https://Jalal1.pythonanywhere.com/api/drivers');
-                const drivers = await response.json();
-                
-                drivers.forEach(driver => {
-                    const driverId = driver.id || driver.traccar_id;
-                    const lat = driver.lat;
-                    const lng = driver.lng;
-                    const name = driver.name || 'تاكسي';
+                const [devicesRes, positionsRes] = await Promise.all([
+                    fetch(`${traccarUrl}/api/devices`, { headers: { 'Authorization': authHeader, 'Accept': 'application/json' } }),
+                    fetch(`${traccarUrl}/api/positions`, { headers: { 'Authorization': authHeader, 'Accept': 'application/json' } })
+                ]);
 
-                    if (lat && lng) {
-                        const popupContent = `
-                            <div>
-                                <b>السائق: ${name}</b><br>
-                                <button class="request-btn" onclick="requestTaxi('${driverId}', '${name}')">طلب التاكسي</button>
-                            </div>
-                        `;
+                if (!devicesRes.ok || !positionsRes.ok) return;
 
-                        if (driverMarkers[driverId]) {
-                            driverMarkers[driverId].setLatLng([lat, lng]);
-                        } else {
-                            driverMarkers[driverId] = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
-                        }
+                const devices = await devicesRes.json();
+                const positions = await positionsRes.json();
+
+                const posMap = {};
+                positions.forEach(p => posMap[p.deviceId] = p);
+
+                devices.forEach(device => {
+                    const driverId = device.uniqueId;
+                    const name = device.name || 'تاكسي';
+                    const pos = posMap[device.id];
+
+                    const lat = pos ? pos.latitude : 36.34;
+                    const lng = pos ? pos.longitude : 43.13;
+
+                    const popupContent = `
+                        <div>
+                            <b>السائق: ${name}</b><br>
+                            <button class="request-btn" onclick="requestTaxi('${driverId}', '${name}')">طلب التاكسي</button>
+                        </div>
+                    `;
+
+                    if (driverMarkers[driverId]) {
+                        driverMarkers[driverId].setLatLng([lat, lng]);
+                    } else {
+                        driverMarkers[driverId] = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
                     }
                 });
             } catch (err) {
@@ -84,16 +111,21 @@
             }
         }
 
+        // دالة طلب التاكسي وإرسال إحداثيات الزبون للبوت
         function requestTaxi(driverId, driverName) {
+            const payload = {
+                action: 'request_taxi',
+                driver_id: driverId,
+                driver_name: driverName,
+                user_lat: userLat,
+                user_lng: userLng
+            };
+
             if (tg) {
-                tg.sendData(JSON.stringify({
-                    action: 'request_taxi',
-                    driver_id: driverId,
-                    driver_name: driverName
-                }));
+                tg.sendData(JSON.stringify(payload));
                 tg.close();
             } else {
-                alert(`تم إرسال طلب للتاكسي: ${driverName}`);
+                alert(`تم إرسال طلب للتاكسي: ${driverName}\nموقعك: ${userLat}, ${userLng}`);
             }
         }
 
