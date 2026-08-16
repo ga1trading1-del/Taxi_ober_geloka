@@ -1,5 +1,9 @@
 import sqlite3
 import logging
+import threading
+import requests
+from flask import Flask, jsonify
+from flask_cors import CORS
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from telegram.ext import (
     ApplicationBuilder,
@@ -9,6 +13,7 @@ from telegram.ext import (
     filters
 )
 
+# --- إعداد التسجيل (Logging) ---
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -17,9 +22,19 @@ logging.basicConfig(
 TOKEN = "8806683255:AAFQR0g5dfbnf8vaEDPm8MvFzCse06z6fvs"
 WEBAPP_URL = "https://ga1trading1-del.github.io/Taxi_ober_geloka/index.html"
 
+# بيانات الاتصال بسيرفر Traccar الخاص بك (قم بتحديث الرابط والبيانات إن لزم)
+TRACCAR_URL = "http://demo.traccar.org"  # استبدله برابط سيرفر Traccar الخاص بك
+TRACCAR_USER = "admin"
+TRACCAR_PASS = "admin"
+
 active_sessions = {}
 driver_reply_sessions = {}
 
+# --- إعداد خادم Flask لـ API الخريطة ---
+app = Flask(__name__)
+CORS(app)  # للسماح بطلبات الخريطة عبر المتصفح
+
+# --- التعامل مع قاعدة البيانات ---
 def init_db():
     conn = sqlite3.connect("drivers.db")
     cursor = conn.cursor()
@@ -52,7 +67,42 @@ def get_all_drivers():
     conn.close()
     return results
 
-# --- الأوامر والرسائل ---
+# --- مسار API الخاص بالخريطة لجلب مواقع التاكسي ---
+@app.route('/api/drivers', methods=['GET'])
+def get_drivers():
+    conn = sqlite3.connect("drivers.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT traccar_id, driver_name FROM drivers")
+    db_drivers = cursor.fetchall()
+    conn.close()
+
+    drivers_data = []
+
+    # جلب المواقع الحية من Traccar لكل سائق مسجل
+    try:
+        response = requests.get(
+            f"{TRACCAR_URL}/api/positions",
+            auth=(TRACCAR_USER, TRACCAR_PASS),
+            timeout=5
+        )
+        positions = response.json() if response.status_code == 200 else []
+        pos_dict = {str(p.get('deviceId')): p for p in positions}
+    except Exception as e:
+        logging.error(f"خطأ الاتصال بسيرفر Traccar: {e}")
+        pos_dict = {}
+
+    for traccar_id, driver_name in db_drivers:
+        pos = pos_dict.get(str(traccar_id), {})
+        drivers_data.append({
+            "id": traccar_id,
+            "name": driver_name,
+            "lat": pos.get("latitude", 36.34),  # موقع افتراضي في حال عدم الربط
+            "lng": pos.get("longitude", 43.13)
+        })
+
+    return jsonify(drivers_data)
+
+# --- الأوامر والرسائل الخاصة بـ Telegram ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
@@ -89,7 +139,6 @@ async def register_driver(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-# استقبال الاختيار القادم من الخريطة (Telegram Web App)
 async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     selected_driver_name = update.effective_message.web_app_data.data
@@ -139,7 +188,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     drivers = get_all_drivers()
     driver_ids = [d[0] for d in drivers]
 
-    # إذا كان المراسِل هو "سائق"
     if user_id in driver_ids:
         if user_id in driver_reply_sessions:
             target_customer_id = driver_reply_sessions[user_id]
@@ -155,7 +203,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("ℹ️ أنت مسجل كسائق. بانتظار طلبات الزبائن.")
         return
 
-    # إذا كان المراسِل "زبون"
     selected_driver_id = None
     selected_driver_name = None
 
@@ -208,18 +255,28 @@ async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logging.error(f"خطأ: {e}")
 
+# تشغيل خادم Flask في خلفية مستقلة
+def run_flask():
+    app.run(host="0.0.0.0", port=5000)
+
 def main():
     init_db()
-    app = ApplicationBuilder().token(TOKEN).build()
+    
+    # تشغيل Flask API بمسار منفصل
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("register_driver", register_driver))
-    app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_webapp_data))
-    app.add_handler(MessageHandler(filters.LOCATION, handle_location))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    bot_app = ApplicationBuilder().token(TOKEN).build()
 
-    print("🚀 البوت يعمل مع خريطة Traccar...")
-    app.run_polling()
+    bot_app.add_handler(CommandHandler("start", start))
+    bot_app.add_handler(CommandHandler("register_driver", register_driver))
+    bot_app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_webapp_data))
+    bot_app.add_handler(MessageHandler(filters.LOCATION, handle_location))
+    bot_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+
+    print("🚀 البوت وخادم API الخريطة يعملان معاً بنجاح...")
+    bot_app.run_polling()
 
 if __name__ == "__main__":
     main()
