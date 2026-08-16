@@ -1,9 +1,6 @@
 import sqlite3
 import logging
-import threading
 import requests
-from flask import Flask, jsonify
-from flask_cors import CORS
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from telegram.ext import (
     ApplicationBuilder,
@@ -29,10 +26,6 @@ TRACCAR_PASS = "1GALAL1galal"
 
 active_sessions = {}
 driver_reply_sessions = {}
-
-# --- إعداد خادم Flask لـ API الخريطة ---
-app = Flask(__name__)
-CORS(app)  # للسماح بطلبات الخريطة عبر المتصفح
 
 # --- التعامل مع قاعدة البيانات ---
 def init_db():
@@ -66,59 +59,6 @@ def get_all_drivers():
     results = cursor.fetchall()
     conn.close()
     return results
-
-# --- مسار API الخاص بالخريطة لجلب مواقع جميع السيارات من سيرفر Traccar ---
-@app.route('/api/drivers', methods=['GET'])
-def get_drivers():
-    conn = sqlite3.connect("drivers.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT traccar_id, driver_name FROM drivers")
-    db_drivers = dict(cursor.fetchall())
-    conn.close()
-
-    drivers_data = []
-
-    try:
-        # 1. جلب قائمة الأجهزة من سيرفر Traccar
-        devices_res = requests.get(
-            f"{TRACCAR_URL}/api/devices",
-            auth=(TRACCAR_USER, TRACCAR_PASS),
-            timeout=10
-        )
-        devices = devices_res.json() if devices_res.status_code == 200 else []
-
-        # 2. جلب المواقع الحية من سيرفر Traccar
-        pos_res = requests.get(
-            f"{TRACCAR_URL}/api/positions",
-            auth=(TRACCAR_USER, TRACCAR_PASS),
-            timeout=10
-        )
-        positions = pos_res.json() if pos_res.status_code == 200 else []
-        pos_dict = {str(p.get('deviceId')): p for p in positions}
-
-        # 3. تجميع كافة السيارات الموجودة في سيرفر Traccar
-        for device in devices:
-            d_id = str(device.get('id'))
-            u_id = str(device.get('uniqueId'))
-            
-            # استخدام الاسم المسجل في البوت أو الاسم المسجل داخل سيرفر Traccar
-            driver_name = db_drivers.get(u_id) or db_drivers.get(d_id) or device.get('name', 'تكسي')
-            
-            pos = pos_dict.get(d_id, {})
-            lat = pos.get("latitude", 36.34)
-            lng = pos.get("longitude", 43.13)
-
-            drivers_data.append({
-                "id": u_id,
-                "name": driver_name,
-                "lat": lat,
-                "lng": lng
-            })
-
-    except Exception as e:
-        logging.error(f"خطأ الاتصال بسيرفر Traccar: {e}")
-
-    return jsonify(drivers_data)
 
 # --- الأوامر والرسائل الخاصة بـ Telegram ---
 
@@ -273,18 +213,9 @@ async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logging.error(f"خطأ: {e}")
 
-# تشغيل خادم Flask في خلفية مستقلة
-def run_flask():
-    app.run(host="0.0.0.0", port=5000)
-
 def main():
     init_db()
     
-    # تشغيل Flask API بمسار منفصل
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.daemon = True
-    flask_thread.start()
-
     bot_app = ApplicationBuilder().token(TOKEN).build()
 
     bot_app.add_handler(CommandHandler("start", start))
@@ -293,7 +224,7 @@ def main():
     bot_app.add_handler(MessageHandler(filters.LOCATION, handle_location))
     bot_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
-    print("🚀 البوت وخادم API الخريطة يعملان معاً بنجاح...")
+    print("🚀 البوت يعمل بنجاح...")
     bot_app.run_polling()
 
 if __name__ == "__main__":
