@@ -22,10 +22,10 @@ logging.basicConfig(
 TOKEN = "8806683255:AAFQR0g5dfbnf8vaEDPm8MvFzCse06z6fvs"
 WEBAPP_URL = "https://ga1trading1-del.github.io/Taxi_ober_geloka/index.html"
 
-# بيانات الاتصال بسيرفر Traccar الخاص بك (قم بتحديث الرابط والبيانات إن لزم)
-TRACCAR_URL = "http://demo.traccar.org"  # استبدله برابط سيرفر Traccar الخاص بك
-TRACCAR_USER = "admin"
-TRACCAR_PASS = "admin"
+# --- بيانات سيرفر Traccar الخاص بك ---
+TRACCAR_URL = "http://109.199.100.128:8082"
+TRACCAR_USER = "07701234567"
+TRACCAR_PASS = "123456789"
 
 active_sessions = {}
 driver_reply_sessions = {}
@@ -67,38 +67,58 @@ def get_all_drivers():
     conn.close()
     return results
 
-# --- مسار API الخاص بالخريطة لجلب مواقع التاكسي ---
+# --- مسار API الخاص بالخريطة لجلب مواقع جميع السيارات من سيرفر Traccar ---
 @app.route('/api/drivers', methods=['GET'])
 def get_drivers():
     conn = sqlite3.connect("drivers.db")
     cursor = conn.cursor()
     cursor.execute("SELECT traccar_id, driver_name FROM drivers")
-    db_drivers = cursor.fetchall()
+    db_drivers = dict(cursor.fetchall())
     conn.close()
 
     drivers_data = []
 
-    # جلب المواقع الحية من Traccar لكل سائق مسجل
     try:
-        response = requests.get(
+        # 1. جلب قائمة الأجهزة من Traccar للحصول على الأسماء
+        devices_res = requests.get(
+            f"{TRACCAR_URL}/api/devices",
+            auth=(TRACCAR_USER, TRACCAR_PASS),
+            timeout=5
+        )
+        devices = devices_res.json() if devices_res.status_code == 200 else []
+        devices_dict = {str(d.get('id')): d.get('name') for d in devices}
+        unique_to_id = {str(d.get('uniqueId')): str(d.get('id')) for d in devices}
+
+        # 2. جلب المواقع الحية من Traccar
+        pos_res = requests.get(
             f"{TRACCAR_URL}/api/positions",
             auth=(TRACCAR_USER, TRACCAR_PASS),
             timeout=5
         )
-        positions = response.json() if response.status_code == 200 else []
+        positions = pos_res.json() if pos_res.status_code == 200 else []
         pos_dict = {str(p.get('deviceId')): p for p in positions}
+
+        # 3. تجميع كافة السيارات الموجودة في السيرفر
+        for device in devices:
+            d_id = str(device.get('id'))
+            u_id = str(device.get('uniqueId'))
+            
+            # جلب الاسم المسجل في البوت أو الاسم المسجل في سيرفر Traccar
+            driver_name = db_drivers.get(u_id) or db_drivers.get(d_id) or device.get('name', 'تكسي')
+            
+            pos = pos_dict.get(d_id, {})
+            lat = pos.get("latitude", 36.34)
+            lng = pos.get("longitude", 43.13)
+
+            drivers_data.append({
+                "id": u_id,
+                "name": driver_name,
+                "lat": lat,
+                "lng": lng
+            })
+
     except Exception as e:
         logging.error(f"خطأ الاتصال بسيرفر Traccar: {e}")
-        pos_dict = {}
-
-    for traccar_id, driver_name in db_drivers:
-        pos = pos_dict.get(str(traccar_id), {})
-        drivers_data.append({
-            "id": traccar_id,
-            "name": driver_name,
-            "lat": pos.get("latitude", 36.34),  # موقع افتراضي في حال عدم الربط
-            "lng": pos.get("longitude", 43.13)
-        })
 
     return jsonify(drivers_data)
 
@@ -123,7 +143,7 @@ async def register_driver(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
 
     if not args:
-        await update.message.reply_text("⚠️ يرجى استخدام الأمر بالشكل الصحيح:\n`/register_driver 79259172 تكسي1`", parse_mode="Markdown")
+        await update.message.reply_text("⚠️ يرجى استخدام الأمر بالشكل الصحيح:\n`/register_driver 58108914 تكسي1`", parse_mode="Markdown")
         return
 
     traccar_id = args[0]
@@ -175,7 +195,7 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
             logging.error(f"خطأ إشعار السائق: {e}")
     else:
         await update.message.reply_text(
-            f"⚠️ التاكسي المختار (`{selected_driver_name}`) غير مسجل حالياً في نظام البوت.",
+            f"⚠️ التاكسي المختار (`{selected_driver_name}`) غير مسجل حساب تليجرام له حالياً لتلقي الرسائل.",
             parse_mode="Markdown"
         )
 
