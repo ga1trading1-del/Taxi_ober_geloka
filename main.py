@@ -22,10 +22,10 @@ logging.basicConfig(
 TOKEN = "8806683255:AAFQR0g5dfbnf8vaEDPm8MvFzCse06z6fvs"
 WEBAPP_URL = "https://ga1trading1-del.github.io/Taxi_ober_geloka/index.html"
 
-# --- بيانات سيرفر Traccar الخاص بك ---
-TRACCAR_URL = "http://109.199.100.128:8082"
-TRACCAR_USER = "07701234567"
-TRACCAR_PASS = "123456789"
+# --- بيانات سيرفر Traccar الخاص بك على Railway ---
+TRACCAR_URL = "https://traccar-production-822f.up.railway.app"
+TRACCAR_USER = "ga1trading1@gmail.com"
+TRACCAR_PASS = "1GALAL1galal"
 
 active_sessions = {}
 driver_reply_sessions = {}
@@ -79,31 +79,29 @@ def get_drivers():
     drivers_data = []
 
     try:
-        # 1. جلب قائمة الأجهزة من Traccar للحصول على الأسماء
+        # 1. جلب قائمة الأجهزة من سيرفر Traccar
         devices_res = requests.get(
             f"{TRACCAR_URL}/api/devices",
             auth=(TRACCAR_USER, TRACCAR_PASS),
-            timeout=5
+            timeout=10
         )
         devices = devices_res.json() if devices_res.status_code == 200 else []
-        devices_dict = {str(d.get('id')): d.get('name') for d in devices}
-        unique_to_id = {str(d.get('uniqueId')): str(d.get('id')) for d in devices}
 
-        # 2. جلب المواقع الحية من Traccar
+        # 2. جلب المواقع الحية من سيرفر Traccar
         pos_res = requests.get(
             f"{TRACCAR_URL}/api/positions",
             auth=(TRACCAR_USER, TRACCAR_PASS),
-            timeout=5
+            timeout=10
         )
         positions = pos_res.json() if pos_res.status_code == 200 else []
         pos_dict = {str(p.get('deviceId')): p for p in positions}
 
-        # 3. تجميع كافة السيارات الموجودة في السيرفر
+        # 3. تجميع كافة السيارات الموجودة في سيرفر Traccar
         for device in devices:
             d_id = str(device.get('id'))
             u_id = str(device.get('uniqueId'))
             
-            # جلب الاسم المسجل في البوت أو الاسم المسجل في سيرفر Traccar
+            # استخدام الاسم المسجل في البوت أو الاسم المسجل داخل سيرفر Traccar
             driver_name = db_drivers.get(u_id) or db_drivers.get(d_id) or device.get('name', 'تكسي')
             
             pos = pos_dict.get(d_id, {})
@@ -143,7 +141,7 @@ async def register_driver(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
 
     if not args:
-        await update.message.reply_text("⚠️ يرجى استخدام الأمر بالشكل الصحيح:\n`/register_driver 58108914 تكسي1`", parse_mode="Markdown")
+        await update.message.reply_text("⚠️ يرجى استخدام الأمر بالشكل الصحيح:\n`/register_driver 79259172 تكسي1`", parse_mode="Markdown")
         return
 
     traccar_id = args[0]
