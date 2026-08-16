@@ -54,7 +54,8 @@
 
         async function fetchDrivers() {
             try {
-                const response = await fetch('https://ga1trading1-del.pythonanywhere.com/api/drivers');
+                // رابط الـ API المحدث لحساب Jalal1
+                const response = await fetch('https://Jalal1.pythonanywhere.com/api/drivers');
                 const drivers = await response.json();
                 
                 drivers.forEach(driver => {
