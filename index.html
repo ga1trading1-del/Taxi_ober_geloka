@@ -38,33 +38,18 @@
         let driverMarkers = {};
 
         async function fetchDrivers() {
-            // استخدام بروكسي آمن لتجاوز حظر الـ HTTPS والـ CORS
-            const targetDevices = encodeURIComponent("http://13.48.26.152:8082/api/devices");
-            const targetPositions = encodeURIComponent("http://13.48.26.152:8082/api/positions");
-            
-            const authHeader = "Basic " + btoa("ga2trading2@gmail.com:1GALAL1galal");
-
             try {
-                const [devicesRes, positionsRes] = await Promise.all([
-                    fetch(`https://api.allorigins.win/raw?url=${targetDevices}`, { headers: { 'Authorization': authHeader } }),
-                    fetch(`https://api.allorigins.win/raw?url=${targetPositions}`, { headers: { 'Authorization': authHeader } })
-                ]);
+                // جلب بيانات التاكسي عبر سيرفر PythonAnywhere الخاص بحساب Jalal1
+                const response = await fetch('https://Jalal1.pythonanywhere.com/get_drivers');
+                if (!response.ok) return;
 
-                if (!devicesRes.ok || !positionsRes.ok) return;
+                const drivers = await response.json();
 
-                const devices = await devicesRes.json();
-                const positions = await positionsRes.json();
-
-                const posMap = {};
-                positions.forEach(p => posMap[p.deviceId] = p);
-
-                devices.forEach(device => {
-                    const driverId = device.uniqueId;
-                    const name = device.name || 'تاكسي';
-                    const pos = posMap[device.id];
-
-                    const lat = pos ? pos.latitude : 36.34;
-                    const lng = pos ? pos.longitude : 43.13;
+                drivers.forEach(driver => {
+                    const driverId = driver.id;
+                    const name = driver.name;
+                    const lat = driver.lat;
+                    const lng = driver.lng;
 
                     const popupContent = `
                         <div>
