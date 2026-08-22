@@ -66,10 +66,10 @@
 
         let driverMarkers = {};
 
-        // دالة جلب السيارات مباشرة من سيرفر Traccar لتجاوز حظر PythonAnywhere
+        // جلب البيانات من سيرفر AWS الجديد
         async function fetchDrivers() {
-            const traccarUrl = "https://traccar-production-822f.up.railway.app";
-            const authHeader = "Basic " + btoa("ga1trading1@gmail.com:1GALAL1galal");
+            const traccarUrl = "http://13.48.26.152:8082";
+            const authHeader = "Basic " + btoa("admin:admin");
 
             try {
                 const [devicesRes, positionsRes] = await Promise.all([
