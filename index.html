@@ -66,15 +66,16 @@
 
         let driverMarkers = {};
 
-        // جلب البيانات من سيرفر AWS الجديد
+        // جلب البيانات من سيرفر AWS عبر بروكسي آمن ومعلومات الحساب الجديدة
         async function fetchDrivers() {
             const traccarUrl = "http://13.48.26.152:8082";
-            const authHeader = "Basic " + btoa("admin:admin");
+            const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(traccarUrl);
+            const authHeader = "Basic " + btoa("ga2trading2@gmail:1GALAL1galal");
 
             try {
                 const [devicesRes, positionsRes] = await Promise.all([
-                    fetch(`${traccarUrl}/api/devices`, { headers: { 'Authorization': authHeader, 'Accept': 'application/json' } }),
-                    fetch(`${traccarUrl}/api/positions`, { headers: { 'Authorization': authHeader, 'Accept': 'application/json' } })
+                    fetch(`${proxyUrl}/api/devices`, { headers: { 'Authorization': authHeader, 'Accept': 'application/json' } }),
+                    fetch(`${proxyUrl}/api/positions`, { headers: { 'Authorization': authHeader, 'Accept': 'application/json' } })
                 ]);
 
                 if (!devicesRes.ok || !positionsRes.ok) return;
