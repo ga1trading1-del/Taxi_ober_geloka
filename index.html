@@ -38,13 +38,16 @@
         let driverMarkers = {};
 
         async function fetchDrivers() {
-            const traccarUrl = "http://13.48.26.152:8082";
+            // استخدام بروكسي آمن لتجاوز حظر الـ HTTPS والـ CORS
+            const targetDevices = encodeURIComponent("http://13.48.26.152:8082/api/devices");
+            const targetPositions = encodeURIComponent("http://13.48.26.152:8082/api/positions");
+            
             const authHeader = "Basic " + btoa("ga2trading2@gmail.com:1GALAL1galal");
 
             try {
                 const [devicesRes, positionsRes] = await Promise.all([
-                    fetch(`${traccarUrl}/api/devices`, { headers: { 'Authorization': authHeader, 'Accept': 'application/json' } }),
-                    fetch(`${traccarUrl}/api/positions`, { headers: { 'Authorization': authHeader, 'Accept': 'application/json' } })
+                    fetch(`https://api.allorigins.win/raw?url=${targetDevices}`, { headers: { 'Authorization': authHeader } }),
+                    fetch(`https://api.allorigins.win/raw?url=${targetPositions}`, { headers: { 'Authorization': authHeader } })
                 ]);
 
                 if (!devicesRes.ok || !positionsRes.ok) return;
