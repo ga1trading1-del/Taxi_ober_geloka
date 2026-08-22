@@ -8,23 +8,8 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        html, body, #map {
-            height: 100%;
-            width: 100%;
-            margin: 0;
-            padding: 0;
-        }
-        .request-btn {
-            background-color: #28a745;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            margin-top: 5px;
-            width: 100%;
-        }
+        html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; }
+        .request-btn { background-color: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 5px; width: 100%; }
     </style>
 </head>
 <body>
@@ -32,50 +17,34 @@
 
     <script>
         const tg = window.Telegram ? window.Telegram.WebApp : null;
-        if (tg) {
-            tg.ready();
-            tg.expand();
-        }
+        if (tg) { tg.ready(); tg.expand(); }
 
         const map = L.map('map').setView([36.34, 43.13], 13);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
 
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
-
-        // إيقونة النقطة الزرقاء المخصصة لموقع الزبون
         const userIcon = L.divIcon({
             className: 'user-marker',
             html: '<div style="background-color: #007bff; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 8px rgba(0,0,255,0.6);"></div>',
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
+            iconSize: [20, 20], iconAnchor: [10, 10]
         });
 
-        let userLat = null;
-        let userLng = null;
-
-        // تحديد موقع الزبون وإظهاره بنقطة زرقاء
+        let userLat = null; let userLng = null;
         map.locate({setView: true, maxZoom: 15, enableHighAccuracy: true});
-
         map.on('locationfound', (e) => {
-            userLat = e.latlng.lat;
-            userLng = e.latlng.lng;
+            userLat = e.latlng.lat; userLng = e.latlng.lng;
             L.marker(e.latlng, { icon: userIcon }).addTo(map).bindPopup("موقعك الحالي").openPopup();
         });
 
         let driverMarkers = {};
 
-        // جلب البيانات من سيرفر AWS عبر بروكسي آمن ومعلومات الحساب الجديدة
         async function fetchDrivers() {
             const traccarUrl = "http://13.48.26.152:8082";
-            const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(traccarUrl);
-            const authHeader = "Basic " + btoa("ga2trading2@gmail:1GALAL1galal");
+            const authHeader = "Basic " + btoa("ga2trading2@gmail.com:1GALAL1galal");
 
             try {
                 const [devicesRes, positionsRes] = await Promise.all([
-                    fetch(`${proxyUrl}/api/devices`, { headers: { 'Authorization': authHeader, 'Accept': 'application/json' } }),
-                    fetch(`${proxyUrl}/api/positions`, { headers: { 'Authorization': authHeader, 'Accept': 'application/json' } })
+                    fetch(`${traccarUrl}/api/devices`, { headers: { 'Authorization': authHeader, 'Accept': 'application/json' } }),
+                    fetch(`${traccarUrl}/api/positions`, { headers: { 'Authorization': authHeader, 'Accept': 'application/json' } })
                 ]);
 
                 if (!devicesRes.ok || !positionsRes.ok) return;
@@ -112,7 +81,6 @@
             }
         }
 
-        // دالة طلب التاكسي وإرسال إحداثيات الزبون للبوت
         function requestTaxi(driverId, driverName) {
             const payload = {
                 action: 'request_taxi',
