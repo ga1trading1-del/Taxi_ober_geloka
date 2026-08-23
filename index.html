@@ -39,7 +39,6 @@
 
         async function fetchDrivers() {
             try {
-                // جلب بيانات التاكسي عبر سيرفر PythonAnywhere الخاص بحساب Jalal1
                 const response = await fetch('https://Jalal1.pythonanywhere.com/get_drivers');
                 if (!response.ok) return;
 
@@ -70,10 +69,13 @@
         }
 
         function requestTaxi(driverId, driverName) {
+            // توحيد مسميات الإحداثيات لتتطابق مع سيرفر PythonAnywhere
             const payload = {
                 action: 'request_taxi',
                 driver_id: driverId,
                 driver_name: driverName,
+                lat: userLat,
+                lng: userLng,
                 user_lat: userLat,
                 user_lng: userLng
             };
