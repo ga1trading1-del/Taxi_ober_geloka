@@ -41,7 +41,6 @@
             try {
                 const response = await fetch('https://Jalal1.pythonanywhere.com/get_drivers');
                 if (!response.ok) return;
-
                 const drivers = await response.json();
 
                 drivers.forEach(driver => {
@@ -64,27 +63,39 @@
                     }
                 });
             } catch (err) {
-                console.error("خطأ في جلب بيانات السائقين:", err);
+                console.error("خطأ في جلب البيانات:", err);
             }
         }
 
-        function requestTaxi(driverId, driverName) {
-            // توحيد مسميات الإحداثيات لتتطابق مع سيرفر PythonAnywhere
+        function sendPayload(driverId, driverName, lat, lng) {
             const payload = {
                 action: 'request_taxi',
                 driver_id: driverId,
                 driver_name: driverName,
-                lat: userLat,
-                lng: userLng,
-                user_lat: userLat,
-                user_lng: userLng
+                lat: lat,
+                lng: lng
             };
-
             if (tg) {
                 tg.sendData(JSON.stringify(payload));
                 tg.close();
+            }
+        }
+
+        function requestTaxi(driverId, driverName) {
+            // محاولة جلب موقع الزبون بدقة لحظة الضغط على الزر
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        sendPayload(driverId, driverName, position.coords.latitude, position.coords.longitude);
+                    },
+                    (error) => {
+                        // في حال فشل GPS، استخدام الموقع المحفوظ إن وجد
+                        sendPayload(driverId, driverName, userLat, userLng);
+                    },
+                    { enableHighAccuracy: true, timeout: 5000 }
+                );
             } else {
-                alert(`تم إرسال طلب للتاكسي: ${driverName}\nموقعك: ${userLat}, ${userLng}`);
+                sendPayload(driverId, driverName, userLat, userLng);
             }
         }
 
