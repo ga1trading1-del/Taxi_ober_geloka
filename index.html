@@ -39,7 +39,7 @@
 
         async function fetchDrivers() {
             try {
-                // منع التخزين المؤقت بإضافة الوقت الحالي إلى طلب الرابط
+                // استبدل Jalal1 باسي حسابك الدقيق في pythonanywhere إذا كان مختلفاً (مثلاً jalal1)
                 const response = await fetch('https://Jalal1.pythonanywhere.com/get_drivers?t=' + new Date().getTime());
                 if (!response.ok) return;
                 const drivers = await response.json();
@@ -59,7 +59,7 @@
                         `;
 
                         if (driverMarkers[driverId]) {
-                            // تحريك ماركر السائق بسلاسة للموقع الجديد
+                            // تحديث الموقع والإحداثيات للماركر القائم
                             driverMarkers[driverId].setLatLng([lat, lng]);
                         } else {
                             // إنشاء الماركر وتخزينه
@@ -102,9 +102,9 @@
             }
         }
 
-        // تشغيل مباشر وتحديث كل 3 ثوانٍ
+        // تشغيل مباشر وتحديث كل 2 ثوانٍ
         fetchDrivers();
-        setInterval(fetchDrivers, 3000);
+        setInterval(fetchDrivers, 2000);
     </script>
 </body>
 </html>
