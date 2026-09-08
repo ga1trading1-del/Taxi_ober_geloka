@@ -91,29 +91,29 @@
         function requestTaxi(driverId, driverName, btnElement) {
             if (btnElement) {
                 btnElement.disabled = true;
-                btnElement.innerText = "جاري تحديد موقعك...";
+                btnElement.innerText = "جاري إرسال الطلب...";
             }
 
-            // 1. استخدام الموقع المسجل إذا كان جاهزاً مسبقاً
-            if (userLat && userLng) {
+            // 1. استخدام الموقع الجاهز المسجل عبر الدائرة الزرقاء فوراً
+            if (userLat !== null && userLng !== null) {
                 sendPayload(driverId, driverName, userLat, userLng);
                 return;
             }
 
-            // 2. الانتظار الصريح لجلب الموقع عند الضغط مع منع الإرسال الفارغ
+            // 2. إذا لم يجهز المتغير بعد، جلب الموقع بصورة سريعة مع التنبيه عند الفشل
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
                         sendPayload(driverId, driverName, position.coords.latitude, position.coords.longitude);
                     },
                     (error) => {
-                        alert("تعذر تحديد موقعك الحالي. يرجى التأكد من تفعيل الـ GPS وإعطاء إذن الموقع للتطبيق ثم المحاولة مجدداً.");
+                        alert("يرجى الانتظار ثواني لحين ظهور الدائرة الزرقاء لموقعك على الخريطة ثم أعد المحاولة.");
                         if (btnElement) {
                             btnElement.disabled = false;
                             btnElement.innerText = "طلب التاكسي";
                         }
                     },
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
                 );
             } else {
                 alert("خدمة تحديد الموقع غير مدعومة في هذا المتصفح.");
