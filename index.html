@@ -32,7 +32,7 @@
         let userLat = null; 
         let userLng = null;
 
-        // جلب موقع الزبون فور فتح الخريطة وحفظه
+        // جلب موقع الزبون فور فتح الخريطة وتحديثه استمرارياً
         map.locate({setView: true, maxZoom: 15, enableHighAccuracy: true, watch: true});
         map.on('locationfound', (e) => {
             userLat = e.latlng.lat; 
@@ -91,28 +91,36 @@
         function requestTaxi(driverId, driverName, btnElement) {
             if (btnElement) {
                 btnElement.disabled = true;
-                btnElement.innerText = "جاري إرسال الموقع...";
+                btnElement.innerText = "جاري تحديد موقعك...";
             }
 
-            // إذا كان موقع الزبون موجوداً بالفعل تم جلب الإحداثيات فوراً
+            // 1. استخدام الموقع المسجل إذا كان جاهزاً مسبقاً
             if (userLat && userLng) {
                 sendPayload(driverId, driverName, userLat, userLng);
                 return;
             }
 
-            // في حال عدم توفر الموقع المحفوظ، اطلب الإذن مع زيادة مهلة الانتظار (Timeout)
+            // 2. الانتظار الصريح لجلب الموقع عند الضغط مع منع الإرسال الفارغ
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
                         sendPayload(driverId, driverName, position.coords.latitude, position.coords.longitude);
                     },
                     (error) => {
-                        sendPayload(driverId, driverName, userLat, userLng);
+                        alert("تعذر تحديد موقعك الحالي. يرجى التأكد من تفعيل الـ GPS وإعطاء إذن الموقع للتطبيق ثم المحاولة مجدداً.");
+                        if (btnElement) {
+                            btnElement.disabled = false;
+                            btnElement.innerText = "طلب التاكسي";
+                        }
                     },
-                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                 );
             } else {
-                sendPayload(driverId, driverName, userLat, userLng);
+                alert("خدمة تحديد الموقع غير مدعومة في هذا المتصفح.");
+                if (btnElement) {
+                    btnElement.disabled = false;
+                    btnElement.innerText = "طلب التاكسي";
+                }
             }
         }
 
