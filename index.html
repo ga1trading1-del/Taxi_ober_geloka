@@ -17,8 +17,6 @@
     <div id="map"></div>
 
     <script>
-        const TRACCAR_SERVER = "http://13.48.26.152:8082"; // IP سيرفر AWS الخاطف
-
         const tg = window.Telegram ? window.Telegram.WebApp : null;
         if (tg) { 
             tg.ready(); 
@@ -64,21 +62,15 @@
 
         async function fetchDrivers() {
             try {
-                // Fetch positions directly from Traccar API
-                const response = await fetch(`${TRACCAR_SERVER}/api/positions`, {
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                });
-                
+                const response = await fetch('https://Jalal1.pythonanywhere.com/get_drivers?t=' + new Date().getTime());
                 if (!response.ok) return;
-                const positions = await response.json();
+                const drivers = await response.json();
 
-                positions.forEach(pos => {
-                    const driverId = pos.deviceId;
-                    const name = 'تاكسي ' + driverId;
-                    const lat = parseFloat(pos.latitude);
-                    const lng = parseFloat(pos.longitude);
+                drivers.forEach(driver => {
+                    const driverId = driver.id;
+                    const name = driver.name || 'تاكسي';
+                    const lat = parseFloat(driver.lat);
+                    const lng = parseFloat(driver.lng);
 
                     if (lat && lng) {
                         const popupContent = `
@@ -96,7 +88,7 @@
                     }
                 });
             } catch (err) {
-                console.error("خطأ في جلب بيانات Traccar:", err);
+                console.error("خطأ في جلب البيانات:", err);
             }
         }
 
