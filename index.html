@@ -8,13 +8,26 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; }
+        html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; font-family: Tahoma, sans-serif; }
         .request-btn { background-color: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 5px; width: 100%; }
         .request-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
     </style>
 </head>
 <body>
     <div id="map"></div>
+
+    <!-- نافذة المحادثة الداخلية (In-App Chat) -->
+    <div id="chat-box" style="display:none; position:fixed; bottom:0; left:0; width:100%; height:260px; background:white; z-index:99999; border-top:3px solid #28a745; box-shadow: 0 -4px 15px rgba(0,0,0,0.2);">
+        <div style="background:#28a745; color:white; padding:10px; display:flex; justify-content:space-between; align-items:center;">
+            <span id="chat-title" style="font-weight:bold;">المحادثة مع السائق</span>
+            <button onclick="endTrip()" style="background:#dc3545; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-weight:bold;">إنهاء الرحلة</button>
+        </div>
+        <div id="messages" style="height:150px; overflow-y:auto; padding:10px; font-size:14px; background:#f8f9fa;"></div>
+        <div style="display:flex; padding:8px; background:#fff; border-top:1px solid #ddd;">
+            <input type="text" id="chat-input" placeholder="اكتب رسالتك هنا..." style="flex:1; padding:8px; border:1px solid #ccc; border-radius:4px; outline:none;">
+            <button onclick="sendMessage()" style="background:#28a745; color:white; border:none; padding:8px 15px; margin-right:5px; border-radius:4px; cursor:pointer; font-weight:bold;">إرسال</button>
+        </div>
+    </div>
 
     <script>
         const tg = window.Telegram ? window.Telegram.WebApp : null;
@@ -92,50 +105,72 @@
             }
         }
 
-        function sendPayload(driverId, driverName, lat, lng) {
-            const payload = {
-                action: 'request_taxi',
-                driver_id: driverId,
-                driver_name: driverName,
-                lat: parseFloat(lat),
-                lng: parseFloat(lng)
-            };
-            if (tg) {
+        // دالة حجب أرقام الهواتف تلقائياً
+        function filterPhoneNumber(text) {
+            const phoneRegex = /(07\d{9}|00964\d{9}|\+\d{10,12}|\d{8,11})/g;
+            if (phoneRegex.test(text)) {
+                alert("تنبيه: ممنوع تبادل أرقام الهواتف حفاظاً على حقوق المنصة!");
+                return text.replace(phoneRegex, "***");
+            }
+            return text;
+        }
+
+        // إرسال رسالة الشات الداخلية
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            let text = input.value.trim();
+            if (!text) return;
+
+            text = filterPhoneNumber(text);
+
+            const msgContainer = document.getElementById('messages');
+            msgContainer.innerHTML += `<div style="margin:5px 0; text-align:left;"><b>أنت:</b> ${text}</div>`;
+            input.value = '';
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+        }
+
+        // فتح الشات الداخلي وإرسال الموقع تلقائياً
+        function openChat(driverId, driverName) {
+            document.getElementById('chat-title').innerText = "المحادثة مع: " + driverName;
+            document.getElementById('chat-box').style.display = 'block';
+            
+            const msgContainer = document.getElementById('messages');
+            msgContainer.innerHTML = `<div style="margin:5px 0; color:#007bff; font-weight:bold;">📍 تم إرسال موقعك الحالي للسائق بنجاح.</div>`;
+            
+            // إرسال البيانات للتليجرام كنسخة احتياطية إذا رغبت بالربط الخلفي
+            if (tg && userLat !== null && userLng !== null) {
+                const payload = {
+                    action: 'request_taxi',
+                    driver_id: driverId,
+                    driver_name: driverName,
+                    lat: userLat,
+                    lng: userLng
+                };
                 tg.sendData(JSON.stringify(payload));
-                tg.close();
+            }
+        }
+
+        // إنهاء الرحلة وحذف المحادثة
+        function endTrip() {
+            if (confirm("هل تريد إنهاء الرحلة وإغلاق المحادثة؟")) {
+                document.getElementById('messages').innerHTML = '';
+                document.getElementById('chat-box').style.display = 'none';
             }
         }
 
         function requestTaxi(driverId, driverName, btnElement) {
             if (btnElement) {
                 btnElement.disabled = true;
-                btnElement.innerText = "جاري إرسال الطلب...";
+                btnElement.innerText = "جاري الاتصال بالسائق...";
             }
 
-            if (userLat !== null && userLng !== null) {
-                sendPayload(driverId, driverName, userLat, userLng);
-                return;
-            }
-
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        sendPayload(driverId, driverName, position.coords.latitude, position.coords.longitude);
-                    },
-                    (error) => {
-                        const center = map.getCenter();
-                        sendPayload(driverId, driverName, center.lat, center.lng);
-                    },
-                    { enableHighAccuracy: true, timeout: 5000 }
-                );
-            } else {
-                const center = map.getCenter();
-                sendPayload(driverId, driverName, center.lat, center.lng);
-            }
+            // فتح نافذة المحادثة الداخلية مباشرة للزبون
+            openChat(driverId, driverName);
         }
 
         fetchDrivers();
-        setInterval(fetchDrivers, 3000);
+        // تم ضبط وقت التحديث إلى كل دقيقة (60000 ملي ثانية) لتخفيف الضغط على السيرفر
+        setInterval(fetchDrivers, 60000);
     </script>
 </body>
 </html>
