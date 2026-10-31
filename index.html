@@ -54,6 +54,7 @@
         let userLat = null; 
         let userLng = null;
         let userMarker = null;
+        let selectedDriverId = null; // متغير لحفظ معرف السائق المختار حالياً
 
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
@@ -118,8 +119,8 @@
             return text;
         }
 
-        // إرسال رسالة الشات الداخلية
-        function sendMessage() {
+        // إرسال رسالة الشات الداخلية وتمريرها لسيرفر البوت لترسل للسائق على تلغرام
+        async function sendMessage() {
             const input = document.getElementById('chat-input');
             let text = input.value.trim();
             if (!text) return;
@@ -130,10 +131,27 @@
             msgContainer.innerHTML += `<div style="margin:5px 0; text-align:left;"><b>أنت:</b> ${text}</div>`;
             input.value = '';
             msgContainer.scrollTop = msgContainer.scrollHeight;
+
+            // إرسال الرسالة إلى سيرفر PythonAnywhere الخاص بك لتوجيهها للسائق على تيليجرام
+            if (selectedDriverId) {
+                try {
+                    await fetch('https://Jalal1.pythonanywhere.com/send-from-app', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            driver_id: selectedDriverId,
+                            message: text
+                        })
+                    });
+                } catch (e) {
+                    console.error("خطأ في إرسال الرسالة للسيرفر:", e);
+                }
+            }
         }
 
         // فتح الشات الداخلي وإرسال الموقع تلقائياً
         function openChat(driverId, driverName) {
+            selectedDriverId = driverId; // حفظ معرف السائق الحالي
             document.getElementById('chat-title').innerText = "المحادثة مع: " + driverName;
             document.getElementById('chat-box').style.display = 'block';
             
@@ -157,6 +175,7 @@
             if (confirm("هل تريد إنهاء الرحلة وإغلاق المحادثة؟")) {
                 document.getElementById('messages').innerHTML = '';
                 document.getElementById('chat-box').style.display = 'none';
+                selectedDriverId = null;
             }
         }
 
