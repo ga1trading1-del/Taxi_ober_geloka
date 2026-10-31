@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تتبع التاكسي</title>
+    <title>تتبع التاكسي - تكسي اوبر جيلوكا</title>
+    <!-- ربط ملف الـ Manifest الخاص بالتطبيق -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#4ef292">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -137,7 +140,6 @@
             const msgContainer = document.getElementById('messages');
             msgContainer.innerHTML = `<div style="margin:5px 0; color:#007bff; font-weight:bold;">📍 تم إرسال موقعك الحالي للسائق بنجاح.</div>`;
             
-            // إرسال البيانات للتليجرام كنسخة احتياطية إذا رغبت بالربط الخلفي
             if (tg && userLat !== null && userLng !== null) {
                 const payload = {
                     action: 'request_taxi',
@@ -163,13 +165,10 @@
                 btnElement.disabled = true;
                 btnElement.innerText = "جاري الاتصال بالسائق...";
             }
-
-            // فتح نافذة المحادثة الداخلية مباشرة للزبون
             openChat(driverId, driverName);
         }
 
         fetchDrivers();
-        // تم ضبط وقت التحديث إلى كل دقيقة (60000 ملي ثانية) لتخفيف الضغط على السيرفر
         setInterval(fetchDrivers, 60000);
     </script>
 </body>
