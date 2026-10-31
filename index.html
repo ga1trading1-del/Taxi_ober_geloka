@@ -54,7 +54,7 @@
         let userLat = null; 
         let userLng = null;
         let userMarker = null;
-        let selectedDriverId = null; // متغير لحفظ معرف السائق المختار حالياً
+        let selectedDriverId = null;
 
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
@@ -119,7 +119,7 @@
             return text;
         }
 
-        // إرسال رسالة الشات الداخلية وتمريرها لسيرفر البوت لترسل للسائق على تلغرام
+        // إرسال رسالة الشات الداخلية وتمريرها لسيرفر البوت
         async function sendMessage() {
             const input = document.getElementById('chat-input');
             let text = input.value.trim();
@@ -132,7 +132,6 @@
             input.value = '';
             msgContainer.scrollTop = msgContainer.scrollHeight;
 
-            // إرسال الرسالة إلى سيرفر PythonAnywhere الخاص بك لتوجيهها للسائق على تيليجرام
             if (selectedDriverId) {
                 try {
                     await fetch('https://Jalal1.pythonanywhere.com/send-from-app', {
@@ -149,15 +148,31 @@
             }
         }
 
-        // فتح الشات الداخلي وإرسال الموقع تلقائياً
-        function openChat(driverId, driverName) {
-            selectedDriverId = driverId; // حفظ معرف السائق الحالي
+        // فتح الشات الداخلي وإرسال الطلب والموقع عبر السيرفر (يدعم APK و PWA)
+        async function openChat(driverId, driverName) {
+            selectedDriverId = driverId;
             document.getElementById('chat-title').innerText = "المحادثة مع: " + driverName;
             document.getElementById('chat-box').style.display = 'block';
             
             const msgContainer = document.getElementById('messages');
             msgContainer.innerHTML = `<div style="margin:5px 0; color:#007bff; font-weight:bold;">📍 تم إرسال موقعك الحالي للسائق بنجاح.</div>`;
             
+            try {
+                await fetch('https://Jalal1.pythonanywhere.com/request-taxi', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        driver_id: driverId,
+                        driver_name: driverName,
+                        lat: userLat,
+                        lng: userLng,
+                        customer_name: tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.first_name : "زبون التطبيق"
+                    })
+                });
+            } catch (e) {
+                console.error("خطأ في إرسال طلب التاكسي للسيرفر:", e);
+            }
+
             if (tg && userLat !== null && userLng !== null) {
                 const payload = {
                     action: 'request_taxi',
@@ -166,7 +181,7 @@
                     lat: userLat,
                     lng: userLng
                 };
-                tg.sendData(JSON.stringify(payload));
+                try { tg.sendData(JSON.stringify(payload)); } catch(err) {}
             }
         }
 
