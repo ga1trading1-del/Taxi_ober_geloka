@@ -33,27 +33,31 @@
         const map = L.map('map').setView([36.34, 43.13], 13);
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-        // تصميم الدائرة الزرقاء الخاصة بموقعك الحالي حصرياً
-        const userIcon = L.divIcon({
-            className: 'user-marker',
-            html: '<div style="background-color: #007bff; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 12px rgba(0,123,255,0.9);"></div>',
-            iconSize: [24, 24], iconAnchor: [12, 12]
-        });
-
         let userLat = null, userLng = null, userMarker = null, selectedDriverId = null;
         let customerName = "زبون التطبيق (" + Math.floor(Math.random() * 1000) + ")";
 
-        // تتبع موقع الزبون وتحديث الدائرة الزرقاء بسلاسة دون تكرار الدبابيس
+        // خصائص الدائرة الزرقاء لموقعك الحالي (شكل دائري نقي بدون دبابيس)
+        const userCircleStyle = {
+            radius: 9,
+            fillColor: "#007bff",
+            color: "#ffffff",
+            weight: 3,
+            opacity: 1,
+            fillOpacity: 1
+        };
+
+        // تتبع الموقع وتحديث الدائرة الزرقاء بسلاسة تامة
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 (pos) => {
                     userLat = pos.coords.latitude;
                     userLng = pos.coords.longitude;
                     const latlng = [userLat, userLng];
+                    
                     if (userMarker) {
                         userMarker.setLatLng(latlng);
                     } else {
-                        userMarker = L.marker(latlng, { icon: userIcon }).addTo(map).bindPopup("موقعك الحالي");
+                        userMarker = L.circleMarker(latlng, userCircleStyle).addTo(map).bindPopup("موقعك الحالي");
                         map.setView(latlng, 15);
                     }
                 },
@@ -74,7 +78,6 @@
                     if (driverMarkers[driverId]) {
                         driverMarkers[driverId].setLatLng([driver.lat, driver.lng]);
                     } else {
-                        // السائقون يظهرون بالدبابيس الطبيعية، وموقعك يبقى دائرة زرقاء
                         driverMarkers[driverId] = L.marker([driver.lat, driver.lng]).addTo(map).bindPopup(popupContent);
                     }
                 });
@@ -118,7 +121,6 @@
             } catch (e) { console.error(e); }
         }
 
-        // جلب ردود السائق تلقائياً كل ثانيتين وعرضها للزبون
         async function checkDriverReplies() {
             if (!selectedDriverId) return;
             try {
