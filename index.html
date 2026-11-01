@@ -73,6 +73,7 @@
                     const lng = parseFloat(driver.lng);
 
                     if (lat && lng) {
+                        // عرض اسم السائق فقط بدون أي أرقام هواتف
                         const popupContent = `
                             <div>
                                 <b>السائق: ${name}</b><br>
@@ -82,6 +83,7 @@
 
                         if (driverMarkers[driverId]) {
                             driverMarkers[driverId].setLatLng([lat, lng]);
+                            driverMarkers[driverId].getPopup().setContent(popupContent);
                         } else {
                             driverMarkers[driverId] = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
                         }
@@ -135,7 +137,7 @@
         }
 
         fetchDrivers();
-        // تم تغيير وقت التحديث إلى 60000 مللي ثانية (أي دقيقة واحدة كاملة) لتقليل الضغط على السيرفر
+        // تحديث الخريطة كل دقيقة (60000 مللي ثانية) لتقليل الضغط على السيرفر
         setInterval(fetchDrivers, 60000);
     </script>
 </body>
