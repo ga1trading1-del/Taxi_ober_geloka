@@ -3,41 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تتبع التاكسي</title>
+    <title>تكسي اوبر جيلوكا</title>
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#4ef292">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; }
-        .request-btn { background-color: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 5px; width: 100%; }
-        .request-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
+        html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; font-family: Tahoma, sans-serif; }
+        .request-btn { background-color: #28a745; color: white; border: none; padding: 9px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 5px; width: 100%; }
+        #chat-box { display: none; position: fixed; bottom: 0; left: 0; width: 100%; height: 270px; background: white; z-index: 99999; border-top: 3px solid #28a745; box-shadow: 0 -4px 15px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
     <div id="map"></div>
 
+    <!-- نافذة المحادثة الداخلية للزبون -->
+    <div id="chat-box">
+        <div style="background:#28a745; color:white; padding:10px; display:flex; justify-content:space-between; align-items:center;">
+            <span id="chat-title" style="font-weight:bold;">محادثة السائق</span>
+            <button onclick="closeChat()" style="background:#dc3545; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer;">إغلاق</button>
+        </div>
+        <div id="messages" style="height:140px; overflow-y:auto; padding:10px; font-size:14px; background:#f8f9fa;"></div>
+        <div style="display:flex; padding:8px; background:#fff; border-top:1px solid #ddd;">
+            <input type="text" id="chat-input" placeholder="اكتب رسالتك للسائق هنا..." style="flex:1; padding:8px; border:1px solid #ccc; border-radius:4px; outline:none;">
+            <button onclick="sendMessage()" style="background:#28a745; color:white; border:none; padding:8px 15px; margin-right:5px; border-radius:4px; cursor:pointer; font-weight:bold;">إرسال</button>
+        </div>
+    </div>
+
     <script>
-        const tg = window.Telegram ? window.Telegram.WebApp : null;
-        if (tg) { 
-            tg.ready(); 
-            tg.expand();
-            if (tg.requestLocation) {
-                tg.requestLocation();
-            }
-        }
+        const map = L.map('map').setView([36.34, 43.13], 13);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-        const map = L.map('map').setView([35.7437, 43.2758], 13);
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
-
-        const userIcon = L.divIcon({
-            className: 'user-marker',
-            html: '<div style="background-color: #007bff; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,123,255,0.8);"></div>',
-            iconSize: [22, 22], iconAnchor: [11, 11]
-        });
-
-        let userLat = null; 
-        let userLng = null;
-        let userMarker = null;
+        // الدائرة الزرقاء النظيفة لموقعك الحالي (بدون دبابيس مكررة)
+        const userCircleStyle = { radius: 9, fillColor: "#007bff", color: "#ffffff", weight: 3, opacity: 1, fillOpacity: 1 };
+        let userLat = null, userLng = null, userMarker = null;
+        let selectedDriverId = null;
+        let selectedDriverPhone = null;
+        let customerName = "زبون (" + Math.floor(Math.random() * 1000) + ")";
 
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
@@ -45,11 +47,10 @@
                     userLat = pos.coords.latitude;
                     userLng = pos.coords.longitude;
                     const latlng = [userLat, userLng];
-
                     if (userMarker) {
                         userMarker.setLatLng(latlng);
                     } else {
-                        userMarker = L.marker(latlng, { icon: userIcon }).addTo(map).bindPopup("موقعك الحالي");
+                        userMarker = L.circleMarker(latlng, userCircleStyle).addTo(map).bindPopup("موقعك الحالي");
                         map.setView(latlng, 15);
                     }
                 },
@@ -69,73 +70,88 @@
                 drivers.forEach(driver => {
                     const driverId = driver.id;
                     const name = driver.name || 'تاكسي';
-                    const lat = parseFloat(driver.lat);
-                    const lng = parseFloat(driver.lng);
+                    const phone = driver.phone || 'غير محدد';
+                    const lat = parseFloat(driver.lat || 36.34);
+                    const lng = parseFloat(driver.lng || 43.13);
 
-                    if (lat && lng) {
-                        const popupContent = `
-                            <div>
-                                <b>السائق: ${name}</b><br>
-                                <button class="request-btn" onclick="requestTaxi('${driverId}', '${name}', this)">طلب التاكسي</button>
-                            </div>
-                        `;
+                    const popupContent = `
+                        <div style="text-align: right; font-family: Tahoma;">
+                            <b>🚖 السائق: ${name}</b><br>
+                            <span style="color: #555; font-size: 12px;">📞 هاتف: ${phone}</span><br>
+                            <button class="request-btn" onclick="openChat('${driverId}', '${phone}', '${name}')">💬 محادثة السائق</button>
+                        </div>
+                    `;
 
-                        if (driverMarkers[driverId]) {
-                            driverMarkers[driverId].setLatLng([lat, lng]);
-                        } else {
-                            driverMarkers[driverId] = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
-                        }
+                    if (driverMarkers[driverId]) {
+                        driverMarkers[driverId].setLatLng([lat, lng]);
+                        driverMarkers[driverId].getPopup().setContent(popupContent);
+                    } else {
+                        driverMarkers[driverId] = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
                     }
                 });
-            } catch (err) {
-                console.error("خطأ في جلب البيانات:", err);
+            } catch (err) { console.error(err); }
+        }
+
+        function openChat(driverId, phone, name) {
+            selectedDriverId = driverId;
+            selectedDriverPhone = phone;
+            document.getElementById('chat-title').innerText = "المحادثة مع: " + name;
+            document.getElementById('chat-box').style.display = 'block';
+            
+            const msgContainer = document.getElementById('messages');
+            msgContainer.innerHTML = `<div style="margin:5px 0; color:#007bff;"><b>النظام:</b> تم فتح المحادثة مع السائق ${name}. أكتب رسالتك أدناه.</div>`;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            let text = input.value.trim();
+            if (!text || !selectedDriverId) return;
+
+            const msgContainer = document.getElementById('messages');
+            msgContainer.innerHTML += `<div style="margin:5px 0; text-align:left; background:#e2f7cb; padding:6px; border-radius:5px;"><b>أنت:</b> ${text}</div>`;
+            input.value = '';
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+
+            try {
+                await fetch('https://Jalal1.pythonanywhere.com/send-from-app', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        driver_id: selectedDriverId,
+                        driver_phone: selectedDriverPhone,
+                        message: text,
+                        customer_name: customerName,
+                        lat: userLat,
+                        lng: userLng
+                    })
+                });
+            } catch (e) {
+                console.error("خطأ في إرسال الرسالة:", e);
             }
         }
 
-        function sendPayload(driverId, driverName, lat, lng) {
-            const payload = {
-                action: 'request_taxi',
-                driver_id: driverId,
-                driver_name: driverName,
-                lat: parseFloat(lat),
-                lng: parseFloat(lng)
-            };
-            if (tg) {
-                tg.sendData(JSON.stringify(payload));
-                tg.close();
-            }
+        async function checkReplies() {
+            if (!selectedDriverId) return;
+            try {
+                const res = await fetch(`https://Jalal1.pythonanywhere.com/get-app-messages?driver_id=${selectedDriverId}`);
+                const data = await res.json();
+                if (data.messages && data.messages.length > 0) {
+                    const msgContainer = document.getElementById('messages');
+                    data.messages.forEach(msg => {
+                        msgContainer.innerHTML += `<div style="margin:5px 0; text-align:right; color:#28a745; background:#fff; padding:6px; border-radius:5px;"><b>السائق:</b> ${msg}</div>`;
+                    });
+                    msgContainer.scrollTop = msgContainer.scrollHeight;
+                }
+            } catch (e) {}
         }
+        setInterval(checkReplies, 2000);
 
-        function requestTaxi(driverId, driverName, btnElement) {
-            if (btnElement) {
-                btnElement.disabled = true;
-                btnElement.innerText = "جاري إرسال الطلب...";
-            }
-
-            if (userLat !== null && userLng !== null) {
-                sendPayload(driverId, driverName, userLat, userLng);
-                return;
-            }
-
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        sendPayload(driverId, driverName, position.coords.latitude, position.coords.longitude);
-                    },
-                    (error) => {
-                        const center = map.getCenter();
-                        sendPayload(driverId, driverName, center.lat, center.lng);
-                    },
-                    { enableHighAccuracy: true, timeout: 5000 }
-                );
-            } else {
-                const center = map.getCenter();
-                sendPayload(driverId, driverName, center.lat, center.lng);
-            }
+        function closeChat() {
+            document.getElementById('chat-box').style.display = 'none';
         }
 
         fetchDrivers();
-        setInterval(fetchDrivers, 3000);
+        setInterval(fetchDrivers, 5000);
     </script>
 </body>
 </html>
