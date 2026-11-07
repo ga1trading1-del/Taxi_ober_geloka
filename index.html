@@ -14,12 +14,11 @@
         .request-btn { background-color: #25d366; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 6px; }
         .request-btn:hover { background-color: #1ebe5d; }
         
-        /* لوحة معلومات السائق العائمة في الأسفل */
         .info-panel {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             background: white; padding: 15px 20px; border-radius: 10px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 1000; text-align: center; width: 85%; max-width: 350px;
-            display: none; /* مخفية افتراضياً وتظهر فقط إذا كان المستخدم سائقاً */
+            display: none;
         }
         .info-panel h4 { margin: 0 0 8px 0; color: #333; }
         .info-panel p { margin: 5px 0; font-weight: bold; color: #007bff; font-size: 14px; }
@@ -28,7 +27,6 @@
 <body>
     <div id="map"></div>
 
-    <!-- لوحة عرض المسافة والوقت للسائق -->
     <div class="info-panel" id="driverInfoPanel">
         <h4>🚖 لوحة الملاحة (سائق)</h4>
         <p id="statusText">بانتظار استقبال طلب جديد...</p>
@@ -44,7 +42,6 @@
         const map = L.map('map').setView([35.7437, 43.2758], 13);
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
 
-        // التحقق مما إذا كان الرابط يحتوي على معرف سائق (driver_id)
         const urlParams = new URLSearchParams(window.location.search);
         const driverId = urlParams.get('driver_id');
         const isDriver = driverId !== null && driverId !== '';
@@ -75,7 +72,6 @@
                 }, (err) => console.log(err), { enableHighAccuracy: true });
             }
 
-            // فحص الطلبات الموجهة لهذا السائق كل 10 ثوانٍ
             async function checkDriverOrders() {
                 if (!driverId || !myLat || !myLng) return;
                 try {
@@ -89,7 +85,6 @@
 
                         if (routingControl) map.removeControl(routingControl);
 
-                        // رسم خط الملاحة الأزرق التلقائي نحو الزبون
                         routingControl = L.Routing.control({
                             waypoints: [
                                 L.latLng(myLat, myLng),
@@ -144,7 +139,7 @@
                     const drivers = await response.json();
 
                     drivers.forEach(driver => {
-                        const dId = driver.id;
+                        const dId = driver.id; // هذا هو الـ Traccar ID الخاص بالسائق
                         const name = driver.name || 'تاكسي';
                         const phone = driver.phone || '9647703568918'; 
                         const lat = parseFloat(driver.lat || 35.7437);
@@ -173,13 +168,14 @@
                 }
             }
 
+            // الدالة المعدلة لترسل الطلب بدقة للسائق المحدد بناءً على معرفه ورقم هاتفه
             function orderViaWhatsApp(dId, phone, driverName) {
                 if (!myLat || !myLng) {
                     alert("جاري تحديد موقعك على الخريطة، يرجى الانتظار ثانية ثم المحاولة.");
                     return;
                 }
 
-                // إرسال الإحداثيات للسيرفر فوراً لكي تظهر عند السائق في نفس التطبيق
+                // إرسال الإحداثيات ومعرف السائق الصحيح للسيرفر
                 fetch('https://Jalal1.pythonanywhere.com/save_order_location', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -188,6 +184,8 @@
 
                 const mapLink = `https://www.google.com/maps?q=${myLat},${myLng}`;
                 const message = `🚖 أهلاً بك، أود طلب التاكسي (${driverName}). موقعي الحالي على الخريطة:\n${mapLink}`;
+                
+                // فتح واتساب السائق المحدد برقم هاتفه الخاص حصرياً
                 window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
             }
 
