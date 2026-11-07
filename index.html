@@ -138,44 +138,46 @@
                     if (!response.ok) return;
                     const drivers = await response.json();
 
+                    // مسح جميع العلامات القديمة بالكامل لمنع ثبات البيانات أو تداخل أرقام الهواتف
+                    Object.values(driverMarkers).forEach(marker => map.removeLayer(marker));
+                    driverMarkers = {};
+
                     drivers.forEach(driver => {
-                        const dId = driver.id; // هذا هو الـ Traccar ID الخاص بالسائق
+                        const dId = String(driver.id); // Traccar ID الخاص بالسائق حصرياً
                         const name = driver.name || 'تاكسي';
-                        const phone = driver.phone || '9647703568918'; 
+                        const phone = String(driver.phone || '9647703568918').trim(); // رقم الهاتف الفريد
                         const lat = parseFloat(driver.lat || 35.7437);
                         const lng = parseFloat(driver.lng || 43.2758);
 
                         if (lat && lng) {
                             const popupContent = `
-                                <div style="text-align: right; font-family: Tahoma; min-width: 150px;">
+                                <div style="text-align: right; font-family: Tahoma; min-width: 160px;">
                                     <b style="font-size: 16px; color: #333;">🚖 ${name}</b><br>
+                                    <span style="font-size: 12px; color: #666;">📞 ${phone}</span><br>
                                     <button class="request-btn" onclick="orderViaWhatsApp('${dId}', '${phone}', '${name}')">
                                         💬 طلب عبر الواتساب
                                     </button>
                                 </div>
                             `;
 
-                            if (driverMarkers[dId]) {
-                                driverMarkers[dId].setLatLng([lat, lng]);
-                                driverMarkers[dId].getPopup().setContent(popupContent);
-                            } else {
-                                driverMarkers[dId] = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
-                            }
+                            // إنشاء علامة جديدة نظيفة ومستقلة تماماً لهذا السائق
+                            const marker = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
+                            driverMarkers[dId] = marker;
                         }
                     });
                 } catch (err) {
-                    console.error(err);
+                    console.error("خطأ في جلب السائقين:", err);
                 }
             }
 
-            // الدالة المعدلة لترسل الطلب بدقة للسائق المحدد بناءً على معرفه ورقم هاتفه
+            // دالة الطلب المخصصة لكل سائق بشكل مستقل تماماً برقمه الخاص
             function orderViaWhatsApp(dId, phone, driverName) {
                 if (!myLat || !myLng) {
                     alert("جاري تحديد موقعك على الخريطة، يرجى الانتظار ثانية ثم المحاولة.");
                     return;
                 }
 
-                // إرسال الإحداثيات ومعرف السائق الصحيح للسيرفر
+                // إرسال الإحداثيات ومعرف السائق المحدد بدقة للسيرفر
                 fetch('https://Jalal1.pythonanywhere.com/save_order_location', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -185,7 +187,7 @@
                 const mapLink = `https://www.google.com/maps?q=${myLat},${myLng}`;
                 const message = `🚖 أهلاً بك، أود طلب التاكسي (${driverName}). موقعي الحالي على الخريطة:\n${mapLink}`;
                 
-                // فتح واتساب السائق المحدد برقم هاتفه الخاص حصرياً
+                // فتح محادثة الواتساب لرقم هاتف هذا السائق بالذات دون غيره
                 window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
             }
 
