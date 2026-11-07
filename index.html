@@ -142,7 +142,7 @@
                     drivers.forEach(driver => {
                         const dId = String(driver.id);
                         const name = String(driver.name || 'تاكسي');
-                        const phone = String(driver.phone || '').trim(); // جلب رقم الهاتف الحقيقي المسجل في قاعدة البيانات
+                        const phone = String(driver.phone || '').trim(); // جلب رقم الهاتف الحقيقي المسجل لكل سائق
                         const lat = parseFloat(driver.lat || 35.7437);
                         const lng = parseFloat(driver.lng || 43.2758);
 
