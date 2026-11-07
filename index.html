@@ -53,7 +53,6 @@
         let routingControl = null;
 
         if (isDriver) {
-            // === وضع السائق ===
             document.getElementById('driverInfoPanel').style.display = 'block';
 
             if (navigator.geolocation) {
@@ -116,7 +115,6 @@
             setInterval(checkDriverOrders, 10000);
 
         } else {
-            // === وضع الزبون ===
             if (navigator.geolocation) {
                 navigator.geolocation.watchPosition((pos) => {
                     myLat = pos.coords.latitude;
@@ -138,14 +136,14 @@
                     if (!response.ok) return;
                     const drivers = await response.json();
 
-                    // مسح جميع العلامات القديمة بالكامل لمنع ثبات البيانات أو تداخل أرقام الهواتف
+                    // مسح العلامات القديمة بالكامل لمنع أي تداخل
                     Object.values(driverMarkers).forEach(marker => map.removeLayer(marker));
                     driverMarkers = {};
 
                     drivers.forEach(driver => {
-                        const dId = String(driver.id); // Traccar ID الخاص بالسائق حصرياً
-                        const name = driver.name || 'تاكسي';
-                        const phone = String(driver.phone || '9647703568918').trim(); // رقم الهاتف الفريد
+                        const dId = String(driver.id);
+                        const name = String(driver.name || 'تاكسي');
+                        const phone = String(driver.phone || '').trim(); // جلب رقم الهاتف الفعلي المرسل من السيرفر حصرياً بدون أي رقم افتراضي
                         const lat = parseFloat(driver.lat || 35.7437);
                         const lng = parseFloat(driver.lng || 43.2758);
 
@@ -160,7 +158,6 @@
                                 </div>
                             `;
 
-                            // إنشاء علامة جديدة نظيفة ومستقلة تماماً لهذا السائق
                             const marker = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
                             driverMarkers[dId] = marker;
                         }
@@ -170,14 +167,12 @@
                 }
             }
 
-            // دالة الطلب المخصصة لكل سائق بشكل مستقل تماماً برقمه الخاص
             function orderViaWhatsApp(dId, phone, driverName) {
                 if (!myLat || !myLng) {
                     alert("جاري تحديد موقعك على الخريطة، يرجى الانتظار ثانية ثم المحاولة.");
                     return;
                 }
 
-                // إرسال الإحداثيات ومعرف السائق المحدد بدقة للسيرفر
                 fetch('https://Jalal1.pythonanywhere.com/save_order_location', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -187,7 +182,6 @@
                 const mapLink = `https://www.google.com/maps?q=${myLat},${myLng}`;
                 const message = `🚖 أهلاً بك، أود طلب التاكسي (${driverName}). موقعي الحالي على الخريطة:\n${mapLink}`;
                 
-                // فتح محادثة الواتساب لرقم هاتف هذا السائق بالذات دون غيره
                 window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
             }
 
