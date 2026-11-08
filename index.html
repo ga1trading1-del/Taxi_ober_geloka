@@ -23,7 +23,6 @@
             tg.expand();
         }
 
-        // توحيد إحداثيات مركز الخريطة لتتطابق مع السيرفر (36.34, 43.13)
         const map = L.map('map').setView([36.34, 43.13], 13);
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
 
@@ -63,10 +62,10 @@
                     const driverId = driver.id;
                     const name = driver.name || 'تاكسي';
                     const phone = driver.phone || '9647703568918'; 
-                    const lat = parseFloat(driver.lat || 36.34);
-                    const lng = parseFloat(driver.lng || 43.13);
+                    const lat = parseFloat(driver.lat);
+                    const lng = parseFloat(driver.lng);
 
-                    if (lat && lng) {
+                    if (!isNaN(lat) && !isNaN(lng)) {
                         const popupContent = `
                             <div style="text-align: right; font-family: Tahoma; min-width: 150px;">
                                 <b style="font-size: 16px; color: #333;">🚖 ${name}</b><br>
@@ -102,7 +101,8 @@
         }
 
         fetchDrivers();
-        setInterval(fetchDrivers, 60000);
+        // تحديث الخريطة تلقائياً كل 5 ثوانٍ ليظهر تحرك التاكسي فورا
+        setInterval(fetchDrivers, 5000);
     </script>
 </body>
 </html>
