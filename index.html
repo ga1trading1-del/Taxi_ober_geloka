@@ -9,9 +9,22 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; }
-        .request-btn { background-color: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 5px; width: 100%; }
-        .request-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
-        .whatsapp-btn { background-color: #25d366; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 5px; width: 100%; text-decoration: none; display: inline-block; text-align: center; }
+        .whatsapp-btn { 
+            background-color: #25d366; 
+            color: white; 
+            border: none; 
+            padding: 6px 14px; 
+            border-radius: 20px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            font-size: 14px;
+            margin-top: 8px; 
+            text-decoration: none; 
+            display: inline-block; 
+            text-align: center; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .popup-content { text-align: center; font-family: Tahoma, sans-serif; }
     </style>
 </head>
 <body>
@@ -22,9 +35,6 @@
         if (tg) { 
             tg.ready(); 
             tg.expand();
-            if (tg.requestLocation) {
-                tg.requestLocation();
-            }
         }
 
         const map = L.map('map').setView([35.7437, 43.2758], 13);
@@ -70,29 +80,29 @@
                 drivers.forEach(driver => {
                     const driverId = driver.id;
                     const name = driver.name || 'تاكسي';
-                    const phone = driver.phone || '9647703568918'; // رقم افتراضي في حال لم يسجل رقمه بعد
+                    const phone = driver.phone || '9647703568918'; 
                     const lat = parseFloat(driver.lat);
                     const lng = parseFloat(driver.lng);
 
                     if (lat && lng) {
-                        // تجهيز رابط الواتساب مع رسالة تلقائية تتضمن موقع الزبون الحالي
                         let latToSend = userLat !== null ? userLat : map.getCenter().lat;
                         let lngToSend = userLng !== null ? userLng : map.getCenter().lng;
                         const mapLink = `https://www.google.com/maps?q=${latToSend},${lngToSend}`;
-                        const waMessage = encodeURIComponent(`مرحباً بك الكابتن (${name})، أود طلب تكسي إلى موقعي الحالي:\n${mapLink}`);
+                        
+                        // الإيموشن أصبح داخل رسالة الواتساب فقط، واسم السائق يظهر نظيفاً
+                        const waMessage = encodeURIComponent(`🚖 مرحباً بك الكابتن (${name})،\nأود طلب تكسي إلى موقعي الحالي:\n${mapLink}`);
                         const waUrl = `https://wa.me/${phone}?text=${waMessage}`;
 
+                        // عرض اسم التكسي المسجل فقط بدون إيموشن على الخريطة، مع زر الواتساب الصغير
                         const popupContent = `
-                            <div>
-                                <b>السائق: ${name}</b><br>
-                                <button class="request-btn" onclick="requestTaxi('${driverId}', '${name}', this)">طلب التاكسي (عبر البوت)</button>
-                                <a href="${waUrl}" target="_blank" class="whatsapp-btn">💬 مراسلة عبر الواتساب</a>
+                            <div class="popup-content">
+                                <b>${name}</b><br>
+                                <a href="${waUrl}" target="_blank" class="whatsapp-btn">💬 طلب عبر الواتساب</a>
                             </div>
                         `;
 
                         if (driverMarkers[driverId]) {
                             driverMarkers[driverId].setLatLng([lat, lng]);
-                            // تحديث محتوى الـ Popup لضمان حصوله على إحداثيات موقع الزبون الحديثة عند النقر
                             driverMarkers[driverId].getPopup().setContent(popupContent);
                         } else {
                             driverMarkers[driverId] = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
@@ -104,50 +114,8 @@
             }
         }
 
-        function sendPayload(driverId, driverName, lat, lng) {
-            const payload = {
-                action: 'request_taxi',
-                driver_id: driverId,
-                driver_name: driverName,
-                lat: parseFloat(lat),
-                lng: parseFloat(lng)
-            };
-            if (tg) {
-                tg.sendData(JSON.stringify(payload));
-                tg.close();
-            }
-        }
-
-        function requestTaxi(driverId, driverName, btnElement) {
-            if (btnElement) {
-                btnElement.disabled = true;
-                btnElement.innerText = "جاري إرسال الطلب...";
-            }
-
-            if (userLat !== null && userLng !== null) {
-                sendPayload(driverId, driverName, userLat, userLng);
-                return;
-            }
-
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        sendPayload(driverId, driverName, position.coords.latitude, position.coords.longitude);
-                    },
-                    (error) => {
-                        const center = map.getCenter();
-                        sendPayload(driverId, driverName, center.lat, center.lng);
-                    },
-                    { enableHighAccuracy: true, timeout: 5000 }
-                );
-            } else {
-                const center = map.getCenter();
-                sendPayload(driverId, driverName, center.lat, center.lng);
-            }
-        }
-
         fetchDrivers();
-        // تم تغيير معدل التحديث إلى 60 ثانية (60000 ميلي ثانية)
+        // تحديث مواقع السيارات كل 60 ثانية
         setInterval(fetchDrivers, 60000);
     </script>
 </body>
