@@ -11,6 +11,7 @@
         html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; }
         .request-btn { background-color: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 5px; width: 100%; }
         .request-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .whatsapp-btn { background-color: #25d366; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 5px; width: 100%; text-decoration: none; display: inline-block; text-align: center; }
     </style>
 </head>
 <body>
@@ -69,19 +70,30 @@
                 drivers.forEach(driver => {
                     const driverId = driver.id;
                     const name = driver.name || 'تاكسي';
+                    const phone = driver.phone || '9647703568918'; // رقم افتراضي في حال لم يسجل رقمه بعد
                     const lat = parseFloat(driver.lat);
                     const lng = parseFloat(driver.lng);
 
                     if (lat && lng) {
+                        // تجهيز رابط الواتساب مع رسالة تلقائية تتضمن موقع الزبون الحالي
+                        let latToSend = userLat !== null ? userLat : map.getCenter().lat;
+                        let lngToSend = userLng !== null ? userLng : map.getCenter().lng;
+                        const mapLink = `https://www.google.com/maps?q=${latToSend},${lngToSend}`;
+                        const waMessage = encodeURIComponent(`مرحباً بك الكابتن (${name})، أود طلب تكسي إلى موقعي الحالي:\n${mapLink}`);
+                        const waUrl = `https://wa.me/${phone}?text=${waMessage}`;
+
                         const popupContent = `
                             <div>
                                 <b>السائق: ${name}</b><br>
-                                <button class="request-btn" onclick="requestTaxi('${driverId}', '${name}', this)">طلب التاكسي</button>
+                                <button class="request-btn" onclick="requestTaxi('${driverId}', '${name}', this)">طلب التاكسي (عبر البوت)</button>
+                                <a href="${waUrl}" target="_blank" class="whatsapp-btn">💬 مراسلة عبر الواتساب</a>
                             </div>
                         `;
 
                         if (driverMarkers[driverId]) {
                             driverMarkers[driverId].setLatLng([lat, lng]);
+                            // تحديث محتوى الـ Popup لضمان حصوله على إحداثيات موقع الزبون الحديثة عند النقر
+                            driverMarkers[driverId].getPopup().setContent(popupContent);
                         } else {
                             driverMarkers[driverId] = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
                         }
@@ -135,7 +147,8 @@
         }
 
         fetchDrivers();
-        setInterval(fetchDrivers, 3000);
+        // تم تغيير معدل التحديث إلى 60 ثانية (60000 ميلي ثانية)
+        setInterval(fetchDrivers, 60000);
     </script>
 </body>
 </html>
