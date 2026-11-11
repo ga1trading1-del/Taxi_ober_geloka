@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تلافي اوبر جيلوكا - خريطة السائق الملاحة</title>
+    <!-- استدعاء مكتبة Leaflet الخريطة -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- استدعاء مكتبة رسم مسار الملاحة Leaflet Routing Machine -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Cairo', sans-serif;
+            background: #f4f4f9;
+        }
+        #map {
+            width: 100%;
+            height: 85vh;
+        }
+        .panel {
+            height: 15vh;
+            background: #222;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            text-align: center;
+        }
+        h3 {
+            margin: 0 0 5px 0;
+            color: #ffc107;
+            font-size: 18px;
+        }
+        p {
+            margin: 0;
+            font-size: 14px;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="panel">
+        <h3 id="status-title">🚖 نظام ملاحة السائق</h3>
+        <p id="status-text">جاري تحديد موقعك الحالي وموقع الزبون...</p>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- استدعاء مكتبات الجافاسكريفت للخريطة والملاحة -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
+    <script>
+        // قراءة إحداثيات الزبون المرسلة عبر رابط الصفحة
+        const urlParams = new URLSearchParams(window.location.search);
+        const customerLat = parseFloat(urlParams.get('lat'));
+        const customerLng = parseFloat(urlParams.get('lng'));
+        const customerName = urlParams.get('name') || 'الزبون';
+
+        // تهيئة الخريطة
+        const map = L.map('map').setView([33.3152, 44.3661], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        let driverMarker = null;
+        let customerMarker = null;
+        let routingControl = null;
+
+        if (customerLat && customerLng) {
+            customerMarker = L.marker([customerLat, customerLng]).addTo(map)
+                .bindPopup(`📍 موقع الزبون: ${customerName}`).openPopup();
+        } else {
+            document.getElementById('status-text').innerText = "⚠️ لم يتم تحديد إحداثيات الزبون في الرابط.";
+        }
+
+        // تتبع موقع السائق الحالي عبر GPS الهاتف
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                (position) => {
+                    const driverLat = position.coords.latitude;
+                    const driverLng = position.coords.longitude;
+                    const driverLatLng = L.latLng(driverLat, driverLng);
+
+                    if (!driverMarker) {
+                        driverMarker = L.marker(driverLatLng).addTo(map)
+                            .bindPopup("🚕 أنت هنا (موقعك الحالي)").openPopup();
+                    } else {
+                        driverMarker.setLatLng(driverLatLng);
+                    }
+
+                    if (customerLat && customerLng) {
+                        const customerLatLng = L.latLng(customerLat, customerLng);
+
+                        if (!routingControl) {
+                            routingControl = L.Routing.control({
+                                waypoints: [driverLatLng, customerLatLng],
+                                routeWhileDragging: false,
+                                language: 'ar',
+                                createMarker: function() { return null; },
+                                router: L.Routing.osrmv1({
+                                    serviceUrl: 'https://router.project-osrm.org/route/v1'
+                                })
+                            }).addTo(map);
+                        } else {
+                            routingControl.setWaypoints([driverLatLng, customerLatLng]);
+                        }
+
+                        document.getElementById('status-text').innerText = `✅ يتم توجيهك الآن إلى موقع (${customerName})`;
+                    } else {
+                        map.setView(driverLatLng, 15);
+                    }
+                },
+                (error) => {
+                    console.error("خطأ في تحديد موقع GPS:", error);
+                    document.getElementById('status-text').innerText = "❌ يرجى تفعيل خدمة الموقع (GPS) في هاتفك.";
+                },
+                { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+            );
+        } else {
+            alert("متصفحك لا يدعم خاصية تحديد الموقع الجغرافي.");
+        }
+    </script>
+</body>
+</html>
