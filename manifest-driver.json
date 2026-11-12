@@ -3,11 +3,12 @@
   "dir": "rtl",
   "display": "standalone",
   "name": "كابتن اوبر جيلوكا",
-  "short_name": "كابتن اوبر جيلوكا",
-  "description": "تطبيق كابتن اوبر جيلوكا خاص بالسائقين",
-  "start_url": "https://ga1trading1-del.github.io/Taxi_ober_geloka/drivers.html",
-  "scope": "/Taxi_ober_geloka/",
-  "theme_color": "#57e58d",
   "orientation": "any",
+  "scope": "/Taxi_ober_geloka/",
+  "short_name": "كابتن اوبر جيلوكا",
+  "start_url": "https://ga1trading1-del.github.io/Taxi_ober_geloka/drivers.html",
+  "theme_color": "#30dc82",
+  "description": "تطبيق كابتن اوبر جيلوكا خاص بالسائقين",
+  "id": "/Taxi_ober_geloka/drivers.html",
   "lang": "ar"
 }
