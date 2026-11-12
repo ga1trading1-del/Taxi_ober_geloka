@@ -7,7 +7,7 @@
     
     <!-- ربط ملف الـ Manifest الخاص بتطبيق السائق -->
     <link rel="manifest" href="manifest-driver.json">
-    <meta name="theme-color" content="#000000">
+    <meta name="theme-color" content="#44db87">
 
     <!-- استدعاء مكتبة Leaflet الخريطة -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -23,10 +23,10 @@
         }
         #map {
             width: 100%;
-            height: 85vh;
+            height: 82vh;
         }
         .panel {
-            height: 15vh;
+            height: 18vh;
             background: #222;
             color: #fff;
             display: flex;
@@ -35,24 +35,31 @@
             align-items: center;
             padding: 10px;
             text-align: center;
+            border-bottom: 3px solid #44db87;
         }
         h3 {
             margin: 0 0 5px 0;
             color: #ffc107;
-            font-size: 18px;
+            font-size: 17px;
         }
         p {
-            margin: 0;
-            font-size: 14px;
+            margin: 3px 0;
+            font-size: 13px;
             color: #ccc;
+        }
+        #distance-text {
+            color: #44db87;
+            font-weight: bold;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
 
     <div class="panel">
-        <h3 id="status-title">🚖 نظام ملاحة السائق</h3>
+        <h3 id="status-title">🚖 نظام ملاحة السائق - جيلوكا</h3>
         <p id="status-text">جاري تحديد موقعك الحالي وموقع الزبون...</p>
+        <p id="distance-text"></p>
     </div>
 
     <div id="map"></div>
@@ -62,13 +69,24 @@
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 
     <script>
-        // قراءة إحداثيات الزبون المرسلة عبر رابط الصفحة
+        // قراءة إحداثيات الزبون واسمه المرسلة عبر الرابط أو التخزين المحلي للحفاظ عليها داخل التطبيق المثبت
         const urlParams = new URLSearchParams(window.location.search);
-        const customerLat = parseFloat(urlParams.get('lat'));
-        const customerLng = parseFloat(urlParams.get('lng'));
-        const customerName = urlParams.get('name') || 'الزبون';
+        let customerLat = parseFloat(urlParams.get('lat'));
+        let customerLng = parseFloat(urlParams.get('lng'));
+        let customerName = urlParams.get('name');
 
-        // تهيئة الخريطة
+        // حفظ البيانات في ذاكرة المتصفح المؤقتة لكي لا تختفي إذا تم فتح التطبيق مباشرة كـ PWA
+        if (customerLat && customerLng) {
+            localStorage.setItem('geloka_lat', customerLat);
+            localStorage.setItem('geloka_lng', customerLng);
+            localStorage.setItem('geloka_name', customerName || 'الزبون');
+        } else {
+            customerLat = parseFloat(localStorage.getItem('geloka_lat'));
+            customerLng = parseFloat(localStorage.getItem('geloka_lng'));
+            customerName = localStorage.getItem('geloka_name') || 'الزبون';
+        }
+
+        // تهيئة الخريطة (بغداد كموقع افتراضي أولي)
         const map = L.map('map').setView([33.3152, 44.3661], 13);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -84,10 +102,10 @@
             customerMarker = L.marker([customerLat, customerLng]).addTo(map)
                 .bindPopup(`📍 موقع الزبون: ${customerName}`).openPopup();
         } else {
-            document.getElementById('status-text').innerText = "⚠️ لم يتم تحديد إحداثيات الزبون في الرابط.";
+            document.getElementById('status-text').innerText = "⚠️ بانتظار تلقي طلب جديد من الزبون...";
         }
 
-        // تتبع موقع السائق الحالي عبر GPS الهاتف
+        // تتبع موقع السائق الحالي عبر GPS الهاتف بالزمن الحقيقي
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 (position) => {
@@ -98,6 +116,7 @@
                     if (!driverMarker) {
                         driverMarker = L.marker(driverLatLng).addTo(map)
                             .bindPopup("🚕 أنت هنا (موقعك الحالي)").openPopup();
+                        map.setView(driverLatLng, 15);
                     } else {
                         driverMarker.setLatLng(driverLatLng);
                     }
@@ -115,20 +134,28 @@
                                     serviceUrl: 'https://router.project-osrm.org/route/v1'
                                 })
                             }).addTo(map);
+
+                            // استخراج مسافة وقت الرحلة لعرضها للسائق
+                            routingControl.on('routesfound', function(e) {
+                                const routes = e.routes;
+                                const summary = routes[0].summary;
+                                const distanceKm = (summary.totalDistance / 1000).toFixed(1);
+                                const timeMin = Math.round(summary.totalTime / 60);
+                                document.getElementById('distance-text').innerText = 
+                                    ` المسافه للزبون (${customerName}): ${distanceKm} كم | الوقت المقدر: ${timeMin} دقيقة`;
+                            });
                         } else {
                             routingControl.setWaypoints([driverLatLng, customerLatLng]);
                         }
 
                         document.getElementById('status-text').innerText = `✅ يتم توجيهك الآن إلى موقع (${customerName})`;
-                    } else {
-                        map.setView(driverLatLng, 15);
                     }
                 },
                 (error) => {
                     console.error("خطأ في تحديد موقع GPS:", error);
                     document.getElementById('status-text').innerText = "❌ يرجى تفعيل خدمة الموقع (GPS) في هاتفك.";
                 },
-                { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+                { enableHighAccuracy: true, maximumAge: 5000, timeout: 5000 }
             );
         } else {
             alert("متصفحك لا يدعم خاصية تحديد الموقع الجغرافي.");
