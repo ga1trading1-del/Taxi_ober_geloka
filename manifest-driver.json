@@ -7,8 +7,7 @@
   "scope": "/Taxi_ober_geloka/",
   "short_name": "كابتن اوبر جيلوكا",
   "start_url": "https://ga1trading1-del.github.io/Taxi_ober_geloka/drivers.html",
-  "theme_color": "#30dc82",
-  "description": "تطبيق كابتن اوبر جيلوكا خاص بالسائقين",
-  "id": "/Taxi_ober_geloka/drivers.html",
+  "theme_color": "#44db87",
+  "id": "com.gelokataxi.driver",
   "lang": "ar"
 }
