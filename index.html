@@ -69,17 +69,20 @@
             );
         }
 
-        // دالة إرسال الطلب بصمت في الخلفية إلى السيرفر فور الضغط على زر الواتساب
+        // دالة إرسال الطلب بصمت وموثوقية إلى السيرفر فور الضغط على زر الواتساب
         function sendOrderToServer(trackerId, lat, lng) {
-            const payload = JSON.stringify({
-                tracker_id: String(trackerId),
+            const data = {
+                tracker_id: String(trackerId).trim(),
                 lat: lat,
                 lng: lng,
                 name: (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.first_name : "زبون"
-            });
-            // إرسال صامت وسريع يضمن وصول البيانات حتى مع الانتقال الفوري لتطبيق واتساب
-            const blob = new Blob([payload], { type: 'application/json' });
-            navigator.sendBeacon('https://Jalal1.pythonanywhere.com/send_order', blob);
+            };
+            fetch('https://Jalal1.pythonanywhere.com/send_order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                body: JSON.stringify(data),
+                keepalive: true
+            }).catch(err => console.error(err));
         }
 
         let driverMarkers = {};
