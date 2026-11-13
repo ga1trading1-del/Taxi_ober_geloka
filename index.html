@@ -17,7 +17,7 @@
             border-radius: 20px; 
             cursor: pointer; 
             font-weight: bold; 
-            font-size: 14px;
+            font-size: 14px; 
             margin-top: 8px; 
             text-decoration: none; 
             display: inline-block; 
@@ -69,6 +69,19 @@
             );
         }
 
+        // دالة إرسال الطلب بصمت في الخلفية إلى السيرفر فور الضغط على زر الواتساب
+        function sendOrderToServer(trackerId, lat, lng) {
+            const payload = JSON.stringify({
+                tracker_id: String(trackerId),
+                lat: lat,
+                lng: lng,
+                name: (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.first_name : "زبون"
+            });
+            // إرسال صامت وسريع يضمن وصول البيانات حتى مع الانتقال الفوري لتطبيق واتساب
+            const blob = new Blob([payload], { type: 'application/json' });
+            navigator.sendBeacon('https://Jalal1.pythonanywhere.com/send_order', blob);
+        }
+
         let driverMarkers = {};
 
         async function fetchDrivers() {
@@ -89,15 +102,15 @@
                         let lngToSend = userLng !== null ? userLng : map.getCenter().lng;
                         const mapLink = `https://www.google.com/maps?q=${latToSend},${lngToSend}`;
                         
-                        // الإيموشن أصبح داخل رسالة الواتساب فقط، واسم السائق يظهر نظيفاً
+                        // رسالة الواتساب المجهزة كما هي تماماً بدون أي تغيير
                         const waMessage = encodeURIComponent(`🚖 مرحباً بك الكابتن (${name})،\nأود طلب تكسي إلى موقعي الحالي:\n${mapLink}`);
                         const waUrl = `https://wa.me/${phone}?text=${waMessage}`;
 
-                        // عرض اسم التكسي المسجل فقط بدون إيموشن على الخريطة، مع زر الواتساب الصغير
+                        // إضافة حدث onclick لإرسال الإحداثيات ومعرّف التراكر للسيرفر قبل فتح الواتساب
                         const popupContent = `
                             <div class="popup-content">
                                 <b>${name}</b><br>
-                                <a href="${waUrl}" target="_blank" class="whatsapp-btn">💬 طلب عبر الواتساب</a>
+                                <a href="${waUrl}" target="_blank" onclick="sendOrderToServer('${driverId}', ${latToSend}, ${lngToSend})" class="whatsapp-btn">💬 طلب عبر الواتساب</a>
                             </div>
                         `;
 
