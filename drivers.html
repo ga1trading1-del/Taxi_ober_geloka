@@ -97,8 +97,12 @@
             updateRoute();
         }
 
-        // دالة إنهاء الرحلة ومسح الطلب
+        // دالة إنهاء الرحلة ومسح الطلب من التطبيق والسيرفر
         function finishTrip() {
+            if (trackerId) {
+                fetch(`${SERVER_URL}/clear_order?tracker_id=${trackerId}`).catch(() => {});
+            }
+
             localStorage.removeItem('geloka_lat');
             localStorage.removeItem('geloka_lng');
             localStorage.removeItem('geloka_name');
@@ -127,7 +131,6 @@
                 .then(res => res.json())
                 .then(data => {
                     if (data && data.lat && data.lng) {
-                        // إذا كان هناك طلب جديد يختلف عن الطلب الحالي
                         if (data.lat !== currentCustomerLat || data.lng !== currentCustomerLng) {
                             setCustomerOrder(data.lat, data.lng, data.name);
                         }
