@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تتبع التاكسي</title>
+    <title>تكسي اوبر جيلوكا</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#8ced99">
+    <link rel="apple-touch-icon" href="launchericon-192x192.png">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -69,7 +72,6 @@
             );
         }
 
-        // دالة إرسال الطلب بصمت وموثوقية إلى السيرفر فور الضغط على زر الواتساب
         function sendOrderToServer(trackerId, lat, lng) {
             const data = {
                 tracker_id: String(trackerId).trim(),
@@ -105,11 +107,9 @@
                         let lngToSend = userLng !== null ? userLng : map.getCenter().lng;
                         const mapLink = `https://www.google.com/maps?q=${latToSend},${lngToSend}`;
                         
-                        // رسالة الواتساب المجهزة كما هي تماماً بدون أي تغيير
                         const waMessage = encodeURIComponent(`🚖 مرحباً بك الكابتن (${name})،\nأود طلب تكسي إلى موقعي الحالي:\n${mapLink}`);
                         const waUrl = `https://wa.me/${phone}?text=${waMessage}`;
 
-                        // إضافة حدث onclick لإرسال الإحداثيات ومعرّف التراكر للسيرفر قبل فتح الواتساب
                         const popupContent = `
                             <div class="popup-content">
                                 <b>${name}</b><br>
@@ -131,7 +131,6 @@
         }
 
         fetchDrivers();
-        // تحديث مواقع السيارات كل 60 ثانية
         setInterval(fetchDrivers, 60000);
     </script>
 </body>
