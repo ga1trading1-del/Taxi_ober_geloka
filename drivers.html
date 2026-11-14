@@ -10,9 +10,9 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Cairo', sans-serif; background: #f4f4f9; }
-        #map { width: 100%; height: 80vh; }
+        #map { width: 100%; height: 78vh; }
         .panel {
-            height: 20vh; background: #1e1e1e; color: #fff;
+            height: 22vh; background: #1e1e1e; color: #fff;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             padding: 10px; text-align: center; border-bottom: 3px solid #44db87; box-sizing: border-box;
         }
@@ -21,10 +21,12 @@
         #distance-text { color: #44db87; font-weight: bold; font-size: 14px; }
         .controls { margin-top: 6px; display: flex; gap: 8px; }
         button {
-            padding: 5px 12px; border: none; border-radius: 5px; font-size: 12px; cursor: pointer; font-weight: bold;
+            padding: 6px 12px; border: none; border-radius: 5px; font-size: 12px; cursor: pointer; font-weight: bold;
         }
         .btn-id { background: #444; color: #fff; }
         .btn-clear { background: #e74c3c; color: #fff; display: none; }
+        /* إخفاء صندوق تعليمات التوجيه النصية لكي لا يغطي الخريطة */
+        .leaflet-routing-container { display: none !important; }
     </style>
 </head>
 <body>
@@ -45,10 +47,8 @@
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 
     <script>
-        // رابط السيرفر الخاص بك
         const SERVER_URL = "https://Jalal1.pythonanywhere.com";
 
-        // 1. التحقق من تسجيل معرف التراكر للسائق
         let trackerId = localStorage.getItem('geloka_tracker_id');
         if (!trackerId) {
             trackerId = prompt("أهلاً كابتن! أدخل معرّف التراكر (Tracker ID) المسجل في البوت:");
@@ -66,18 +66,23 @@
             }
         }
 
-        // 2. تهيئة الخريطة
         const map = L.map('map').setView([36.3400, 43.1300], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+        // أيقونة مميزة للتاكسي
+        const taxiIcon = L.divIcon({
+            html: '<div style="font-size: 26px; text-shadow: 0 2px 5px rgba(0,0,0,0.5);">🚖</div>',
+            className: '', iconSize: [30, 30], iconAnchor: [15, 15]
+        });
 
         let driverMarker = null;
         let customerMarker = null;
         let routingControl = null;
+        let fallbackLine = null;
         let currentCustomerLat = parseFloat(localStorage.getItem('geloka_lat')) || null;
         let currentCustomerLng = parseFloat(localStorage.getItem('geloka_lng')) || null;
         let currentCustomerName = localStorage.getItem('geloka_name') || 'الزبون';
 
-        // دالة عرض الطلب ورسم المسار
         function setCustomerOrder(lat, lng, name) {
             currentCustomerLat = parseFloat(lat);
             currentCustomerLng = parseFloat(lng);
@@ -97,7 +102,6 @@
             updateRoute();
         }
 
-        // دالة إنهاء الرحلة ومسح الطلب من التطبيق والسيرفر
         function finishTrip() {
             if (trackerId) {
                 fetch(`${SERVER_URL}/clear_order?tracker_id=${trackerId}`).catch(() => {});
@@ -111,20 +115,19 @@
 
             if (customerMarker) map.removeLayer(customerMarker);
             if (routingControl) { map.removeControl(routingControl); routingControl = null; }
+            if (fallbackLine) { map.removeLayer(fallbackLine); fallbackLine = null; }
 
             document.getElementById('clear-btn').style.display = 'none';
             document.getElementById('distance-text').innerText = '';
             document.getElementById('status-text').innerText = '🟢 متاح الآن.. بانتظار طلبات جديدة';
         }
 
-        // استرجاع أي طلب نشط محفوظ مسبقاً
         if (currentCustomerLat && currentCustomerLng) {
             setCustomerOrder(currentCustomerLat, currentCustomerLng, currentCustomerName);
         } else {
             document.getElementById('status-text').innerText = '🟢 متاح الآن.. بانتظار طلبات جديدة';
         }
 
-        // 3. فحص السيرفر تلقائياً كل 4 ثوانٍ لجلب الطلبات الخاصة بهذا التراكر
         setInterval(() => {
             if (!trackerId) return;
             fetch(`${SERVER_URL}/get_order?tracker_id=${trackerId}`)
@@ -139,24 +142,39 @@
                 .catch(err => console.log("بانتظار اتصال السيرفر..."));
         }, 4000);
 
-        // 4. تتبع موقع السائق وتحديث خط الملاحة
         let lastDriverLatLng = null;
         function updateRoute() {
             if (lastDriverLatLng && currentCustomerLat && currentCustomerLng) {
                 const customerLatLng = L.latLng(currentCustomerLat, currentCustomerLng);
+                
+                // رسم خط مباشر احتياطي فوراً حتى يتم تحميل مسار الشوارع
+                if (fallbackLine) map.removeLayer(fallbackLine);
+                fallbackLine = L.polyline([lastDriverLatLng, customerLatLng], {
+                    color: '#2ecc71', weight: 5, opacity: 0.7, dashArray: '10, 10'
+                }).addTo(map);
+
+                // حساب المسافة المباشرة مبدئياً
+                const directMeters = map.distance(lastDriverLatLng, customerLatLng);
+                document.getElementById('distance-text').innerText = `المسافة التقريبية: ${(directMeters / 1000).toFixed(2)} كم`;
+
                 if (!routingControl) {
                     routingControl = L.Routing.control({
                         waypoints: [lastDriverLatLng, customerLatLng],
                         routeWhileDragging: false,
-                        language: 'ar',
+                        addWaypoints: false,
+                        show: false,
                         createMarker: () => null,
+                        lineOptions: {
+                            styles: [{ color: '#007bff', opacity: 0.9, weight: 6 }]
+                        },
                         router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' })
                     }).addTo(map);
 
                     routingControl.on('routesfound', function(e) {
+                        if (fallbackLine) { map.removeLayer(fallbackLine); fallbackLine = null; }
                         const summary = e.routes[0].summary;
                         const km = (summary.totalDistance / 1000).toFixed(1);
-                        const min = Math.round(summary.totalTime / 60);
+                        const min = Math.max(1, Math.round(summary.totalTime / 60));
                         document.getElementById('distance-text').innerText = `المسافة: ${km} كم | الوقت: ${min} دقيقة`;
                     });
                 } else {
@@ -169,13 +187,15 @@
             navigator.geolocation.watchPosition((pos) => {
                 lastDriverLatLng = L.latLng(pos.coords.latitude, pos.coords.longitude);
                 if (!driverMarker) {
-                    driverMarker = L.marker(lastDriverLatLng).addTo(map).bindPopup("🚕 موقعك الحالي");
+                    driverMarker = L.marker(lastDriverLatLng, { icon: taxiIcon }).addTo(map).bindPopup("🚖 موقعك الحالي");
                     if (!currentCustomerLat) map.setView(lastDriverLatLng, 15);
                 } else {
                     driverMarker.setLatLng(lastDriverLatLng);
                 }
                 updateRoute();
-            }, null, { enableHighAccuracy: true });
+            }, (err) => {
+                document.getElementById('distance-text').innerText = "⚠️ يرجى تفعيل GPS في الهاتف لرسم المسار";
+            }, { enableHighAccuracy: true, maximumAge: 0 });
         }
     </script>
 </body>
