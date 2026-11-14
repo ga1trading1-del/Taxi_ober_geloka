@@ -79,6 +79,7 @@
         let customerMarker = null;
         let routingControl = null;
         let fallbackLine = null;
+        let lastDriverLatLng = null;
         let currentCustomerLat = parseFloat(localStorage.getItem('geloka_lat')) || null;
         let currentCustomerLng = parseFloat(localStorage.getItem('geloka_lng')) || null;
         let currentCustomerName = localStorage.getItem('geloka_name') || 'الزبون';
@@ -113,9 +114,30 @@
             currentCustomerLat = null;
             currentCustomerLng = null;
 
-            if (customerMarker) map.removeLayer(customerMarker);
-            if (routingControl) { map.removeControl(routingControl); routingControl = null; }
-            if (fallbackLine) { map.removeLayer(fallbackLine); fallbackLine = null; }
+            // إزالة علامة الزبون وخطوط الملاحة فقط
+            if (customerMarker) {
+                map.removeLayer(customerMarker);
+                customerMarker = null;
+            }
+            if (routingControl) {
+                map.removeControl(routingControl);
+                routingControl = null;
+            }
+            if (fallbackLine) {
+                map.removeLayer(fallbackLine);
+                fallbackLine = null;
+            }
+
+            // ضمان بقاء أيقونة التكسي ظاهرة وتمركز الخريطة عليها
+            if (lastDriverLatLng) {
+                if (driverMarker) {
+                    map.removeLayer(driverMarker);
+                }
+                driverMarker = L.marker(lastDriverLatLng, { icon: taxiIcon })
+                    .addTo(map)
+                    .bindPopup("🚖 موقعك الحالي");
+                map.setView(lastDriverLatLng, 15);
+            }
 
             document.getElementById('clear-btn').style.display = 'none';
             document.getElementById('distance-text').innerText = '';
@@ -142,7 +164,6 @@
                 .catch(err => console.log("بانتظار اتصال السيرفر..."));
         }, 4000);
 
-        let lastDriverLatLng = null;
         function updateRoute() {
             if (lastDriverLatLng && currentCustomerLat && currentCustomerLng) {
                 const customerLatLng = L.latLng(currentCustomerLat, currentCustomerLng);
