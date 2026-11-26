@@ -8,13 +8,14 @@
     <meta name="theme-color" content="#8ced99">
     <link rel="apple-touch-icon" href="launchericon-192x192.png">
     
+    <!-- تسريع الاتصال بالخوادم قبل بدء التحميل -->
     <link rel="preconnect" href="https://cdnjs.cloudflare.com">
-    <link rel="preconnect" href="https://mt1.google.com">
+    <link rel="preconnect" href="https://tile.openstreetmap.org">
     <link rel="preconnect" href="https://Jalal1.pythonanywhere.com">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
     
     <style>
-        html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; background-color: #f0efe9; }
+        html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; background-color: #f2efe9; }
         .whatsapp-btn { 
             background-color: #25d366; 
             color: white; 
@@ -36,6 +37,7 @@
 <body>
     <div id="map"></div>
 
+    <!-- تحميل السكربتات في الأسفل حتى لا تؤخر فتح التطبيق -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js" async></script>
 
@@ -47,28 +49,12 @@
             }
         });
 
-        // إنشاء الخريطة فوراً
-        const map = L.map('map', {
-            zoomControl: true,
-            attributionControl: false
-        }).setView([35.7437, 43.2758], 14);
-
-        // خرائط Google Streets السريعة جداً (تعمل مجاناً بدون مفتاح API وتدعم العربية)
-        const googleStreets = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=ar&x={x}&y={y}&z={z}', {
-            maxZoom: 20,
-            subdomains: ['0', '1', '2', '3']
+        // نفس خريطة OpenStreetMap الدقيقة والمبسطة تماماً
+        const map = L.map('map').setView([35.7437, 43.2758], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
         }).addTo(map);
-
-        // خريطة احتياطية فورية في حال حدوث أي مشكلة
-        googleStreets.on('tileerror', function() {
-            if (!map.hasLayer(esriFallback)) {
-                esriFallback.addTo(map);
-            }
-        });
-
-        const esriFallback = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 19
-        });
 
         const userIcon = L.divIcon({
             className: 'user-marker',
@@ -94,8 +80,8 @@
                         map.setView(latlng, 15);
                     }
                 },
-                (err) => { console.log("خطأ GPS:", err); },
-                { enableHighAccuracy: false, timeout: 6000, maximumAge: 15000 }
+                (err) => { console.log("خطأ في تحديد الموقع:", err); },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
             );
         }
 
@@ -120,7 +106,7 @@
         async function fetchDrivers() {
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 6000);
+                const timeoutId = setTimeout(() => controller.abort(), 7000);
                 
                 const response = await fetch('https://Jalal1.pythonanywhere.com/get_drivers?t=' + Date.now(), {
                     signal: controller.signal
