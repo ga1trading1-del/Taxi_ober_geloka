@@ -49,9 +49,9 @@
             }
         });
 
-        // رسم الخريطة فوراً
+        // رسم الخريطة فوراً بخرائط OpenStreetMap الكاملة
         const map = L.map('map').setView([35.7437, 43.2758], 13);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap'
         }).addTo(map);
@@ -134,25 +134,4 @@
                         const popupContent = `
                             <div class="popup-content">
                                 <b>${name}</b><br>
-                                <a href="${waUrl}" target="_blank" onclick="sendOrderToServer('${driverId}', ${latToSend}, ${lngToSend})" class="whatsapp-btn">💬 طلب عبر الواتساب</a>
-                            </div>
-                        `;
-
-                        if (driverMarkers[driverId]) {
-                            driverMarkers[driverId].setLatLng([lat, lng]);
-                            driverMarkers[driverId].getPopup().setContent(popupContent);
-                        } else {
-                            driverMarkers[driverId] = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
-                        }
-                    }
-                });
-            } catch (err) {
-                console.error("تأخر السيرفر في الرد:", err);
-            }
-        }
-
-        fetchDrivers();
-        setInterval(fetchDrivers, 60000);
-    </script>
-</body>
-</html>
+                                <a href="${waUrl}" target="_blank" onclick="sendOrderToServer('${driverId}',${latTo
